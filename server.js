@@ -221,30 +221,61 @@ app.post('/api/admin/promote', async (req, res) => {
 app.post('/api/admin/clear-attendance', async (req, res) => {
   const { year, semester, dept } = req.body;
   try {
-    // Find students matching filters
-    const filter = {};
-    if (year) filter.year = year;
-    if (semester) filter.semester = semester;
-    if (dept) filter.dept = dept;
+    // 1. Resolve matching sections for the filters
+    const sectionFilter = {};
+    if (year) sectionFilter.year = year;
+    if (semester) sectionFilter.semester = semester;
+    if (dept) sectionFilter.dept = dept;
     
-    const students = await Student.find(filter);
+    const targetSections = await Section.find(sectionFilter);
+    const sectionLabels = targetSections.map(s => s.label);
+
+    // 2. Clear Students matching filters (to refine records wiping)
+    const studentFilter = { ...sectionFilter };
+    const students = await Student.find(studentFilter);
     const studentIds = students.map(s => s.id);
+
+    // 3. ATOMIC RESET: Delete/Reset Attendance & Locks
+    // If we have specific students, we wipe their marks. 
+    // If the filter targets a whole section/year/sem, we MUST also unlock.
     
     const allAtt = await Attendance.find();
     for (let att of allAtt) {
       let changed = false;
+      
+      // Wipe specific student records
       studentIds.forEach(id => {
         if (att.records && att.records[id]) {
           delete att.records[id];
           changed = true;
         }
       });
+      
+      // If the attendance document belongs to a target section, UNLOCK it
+      if (sectionLabels.includes(att.section)) {
+        att.lockedAt = null;
+        att.lockedBy = null;
+        changed = true;
+      }
+
       if (changed) {
         att.markModified('records');
         await att.save();
       }
     }
-    res.json({ success: true, message: 'Attendance records cleared for selected filters.' });
+    
+    // Also clear the secondary Lock collection if any exist for these sections
+    // Lock key format: date|subjectId|section|period
+    const allLocks = await Lock.find();
+    for (let lock of allLocks) {
+      const parts = lock.lockKey.split('|');
+      const lockSection = parts[2];
+      if (sectionLabels.includes(lockSection)) {
+        await Lock.findByIdAndDelete(lock._id);
+      }
+    }
+
+    res.json({ success: true, message: 'Attendance records and locks cleared successfully.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
