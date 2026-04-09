@@ -92,7 +92,7 @@ const attendanceSchema = new mongoose.Schema({
     subjectId: String,
     section: String,
     period: { type: String, default: "1" }, // NEW FIELD
-    records: mongoose.Schema.Types.Mixed, // { studentId: 'present'|'absent'|'late' }
+    records: mongoose.Schema.Types.Mixed, // { studentId: 'present'|'absent' }
     lockedAt: { type: Date, default: null },
     lockedBy: String
 });
@@ -160,10 +160,112 @@ app.post('/api/sections', async (req, res) => res.json(await new Section(req.bod
 app.delete('/api/sections/:id', async (req, res) => res.json(await Section.findOneAndDelete({ id: req.params.id })));
 
 // Students
-app.get('/api/students', async (req, res) => res.json(await Student.find()));
+app.get('/api/students', async (req, res) => {
+  let students = await Student.find();
+  // Natural Sort: 21B1 before 21B10
+  students.sort((a, b) => a.roll.localeCompare(b.roll, undefined, { numeric: true, sensitivity: 'base' }));
+  res.json(students);
+});
 app.post('/api/students', async (req, res) => res.json(await new Student(req.body).save()));
 app.put('/api/students/:id', async (req, res) => res.json(await Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/students/:id', async (req, res) => res.json(await Student.findOneAndDelete({ id: req.params.id })));
+
+// --- Admin Logic: Promote & Clear ---
+app.post('/api/admin/promote', async (req, res) => {
+  try {
+    const students = await Student.find();
+    const promotedIds = [];
+    
+    for (let s of students) {
+      let sem = parseInt(s.semester);
+      let year = parseInt(s.year);
+      
+      if (sem === 1 || sem === 3 || sem === 5) {
+        // Odd -> Even
+        s.semester = (sem + 1).toString();
+      } else if (sem === 2 || sem === 4 || sem === 6) {
+        // Even -> Sem 1 & Increment Year
+        s.semester = "1";
+        s.year = (year + 1).toString();
+      }
+      
+      await s.save();
+      promotedIds.push(s.id);
+    }
+    
+    // Cleanup: Wipe attendance for promoted students
+    // The requirement says "delete all existing attendance records for those specific students"
+    // Since records is Mixed { studentId: status }, we need to remove keys or just wipe the whole record if it's term-based.
+    // Given the phrasing "start a fresh term", wiping the records for those students in existing attendance documents:
+    const allAtt = await Attendance.find();
+    for (let att of allAtt) {
+      let changed = false;
+      promotedIds.forEach(id => {
+        if (att.records && att.records[id]) {
+          delete att.records[id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        att.markModified('records');
+        await att.save();
+      }
+    }
+    
+    res.json({ success: true, message: 'Students promoted and attendance cleared.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/admin/clear-attendance', async (req, res) => {
+  const { year, semester, dept } = req.body;
+  try {
+    // Find students matching filters
+    const filter = {};
+    if (year) filter.year = year;
+    if (semester) filter.semester = semester;
+    if (dept) filter.dept = dept;
+    
+    const students = await Student.find(filter);
+    const studentIds = students.map(s => s.id);
+    
+    const allAtt = await Attendance.find();
+    for (let att of allAtt) {
+      let changed = false;
+      studentIds.forEach(id => {
+        if (att.records && att.records[id]) {
+          delete att.records[id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        att.markModified('records');
+        await att.save();
+      }
+    }
+    res.json({ success: true, message: 'Attendance records cleared for selected filters.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// --- HOD Logic: Modify Attendance ---
+app.put('/api/attendance/update', async (req, res) => {
+  const { date, section, period, records } = req.body;
+  try {
+    // HOD can override locks/existing records
+    const att = await Attendance.findOneAndUpdate(
+      { date, section, period },
+      { $set: { records } },
+      { new: true }
+    );
+    if (!att) return res.status(404).json({ success: false, message: 'No attendance record found for this period to modify.' });
+    res.json({ success: true, data: att });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // Subjects
 app.get('/api/subjects', async (req, res) => res.json(await Subject.find()));
@@ -196,8 +298,8 @@ app.get('/api/attendance-locks', async (req, res) => {
 app.post('/api/attendance/save', async (req, res) => {
     const { date, subjectId, records, section, lockedBy, period = "1" } = req.body;
     try {
-        // Check if locked for this specific period
-        const existing = await Attendance.findOne({ date, subjectId, section, period, lockedAt: { $ne: null } });
+        // Check if locked for this specific class/section/period (Requirement: preventing multiple staff)
+        const existing = await Attendance.findOne({ date, section, period, lockedAt: { $ne: null } });
         if (existing) return res.status(403).json({ success: false, reason: 'locked' });
 
         await Attendance.findOneAndUpdate(
