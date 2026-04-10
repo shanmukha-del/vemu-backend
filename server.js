@@ -162,8 +162,34 @@ app.delete('/api/sections/:id', async (req, res) => res.json(await Section.findO
 // Students
 app.get('/api/students', async (req, res) => {
   let students = await Student.find();
-  // Natural Sort: 21B1 before 21B10
-  students.sort((a, b) => a.roll.localeCompare(b.roll, undefined, { numeric: true, sensitivity: 'base' }));
+  
+  // Specialized Student Sorting Logic:
+  // 1. Primary: Regular numeric endings (e.g., ...01) before Alphanumeric (e.g., ...A0)
+  // 2. Secondary: Year-based (e.g., 24... before 25...)
+  // 3. Tertiary: Natural sort for the rest
+  students.sort((a, b) => {
+    const rA = a.roll.toUpperCase();
+    const rB = b.roll.toUpperCase();
+    
+    // Extract ending (last 2 chars)
+    const endA = rA.slice(-2);
+    const endB = rB.slice(-2);
+    const isNumA = /^\d{2}$/.test(endA);
+    const isNumB = /^\d{2}$/.test(endB);
+    
+    // Priority 1: Numeric endings first
+    if (isNumA && !isNumB) return -1;
+    if (!isNumA && isNumB) return 1;
+    
+    // Priority 2: Year-based (First 2 digits)
+    const yearA = rA.substring(0, 2);
+    const yearB = rB.substring(0, 2);
+    if (yearA !== yearB) return yearA.localeCompare(yearB);
+    
+    // Priority 3: Natural sort
+    return rA.localeCompare(rB, undefined, { numeric: true });
+  });
+  
   res.json(students);
 });
 app.post('/api/students', async (req, res) => res.json(await new Student(req.body).save()));
