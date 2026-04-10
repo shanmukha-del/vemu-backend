@@ -71,7 +71,8 @@ const studentSchema = new mongoose.Schema({
     section: String,
     phone: String,
     dob: String,    // ADDED
-    email: String   // ADDED
+    email: String,   // ADDED
+    studentType: { type: String, enum: ['Regular', 'LE'], default: 'Regular' }
 });
 const Student = mongoose.model('Student', studentSchema);
 
@@ -192,7 +193,10 @@ app.get('/api/students', async (req, res) => {
   
   res.json(students);
 });
-app.post('/api/students', async (req, res) => res.json(await new Student(req.body).save()));
+app.post('/api/students', async (req, res) => {
+  const s = new Student({ ...req.body, studentType: req.body.studentType || 'Regular' });
+  res.json(await s.save());
+});
 app.put('/api/students/:id', async (req, res) => res.json(await Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/students/:id', async (req, res) => res.json(await Student.findOneAndDelete({ id: req.params.id })));
 
