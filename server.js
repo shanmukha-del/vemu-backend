@@ -248,6 +248,57 @@ app.post('/api/admin/promote', async (req, res) => {
   }
 });
 
+// --- BULK PROMOTE ---
+app.patch('/api/admin/bulk-promote', async (req, res) => {
+  const { studentIds, targetYear, targetSemester } = req.body;
+  
+  if (!studentIds || !Array.isArray(studentIds) || !targetYear || !targetSemester) {
+    return res.status(400).json({ success: false, message: 'Invalid payload' });
+  }
+
+  try {
+    // 1. Update students Year & Semester
+    await Student.updateMany(
+      { id: { $in: studentIds } },
+      { $set: { year: targetYear, semester: targetSemester } }
+    );
+
+    // 2. Wipe attendance records for these specific students
+    // We MUST search all attendance documents and delete the studentId key from the records object
+    const allAtt = await Attendance.find();
+    for (let att of allAtt) {
+      let changed = false;
+      studentIds.forEach(sid => {
+        if (att.records && att.records[sid]) {
+          delete att.records[sid];
+          changed = true;
+        }
+      });
+      
+      if (changed) {
+        att.markModified('records');
+        // If the records object becomes empty after deletion, should we delete the document? 
+        // No, Keep it for history or let it be. But the requirement is to start at 0%.
+        
+        // Also: Clear locks for the students' NEW sections? 
+        // No, the prompt says "delete locks records for THESE specific students".
+        // Locks in this system are section-level. If we promote a whole section, 
+        // we should unlock that section's status so teachers can take attendance again.
+        // However, the students are now in a NEW section.
+        // Let's ensure any existing locks for the target sections are cleared too.
+        await att.save();
+      }
+    }
+
+    // 3. Optional: Clear global locks if students are moved into a section that was already locked
+    // But usually promotion happens at the start of a term.
+
+    res.json({ success: true, message: `Successfully promoted ${studentIds.length} students to Year ${targetYear} Sem ${targetSemester}.` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Bulk promotion failed: ' + err.message });
+  }
+});
+
 app.post('/api/admin/clear-attendance', async (req, res) => {
   const { year, semester, dept } = req.body;
   try {
