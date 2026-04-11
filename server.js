@@ -336,63 +336,81 @@ app.post('/api/attendance/save', async (req, res) => {
     }
 });
 
-// --- BULK PROMOTION LOGIC ---
-
-// Task 1: The 'Smart-Map' Logic (Helper Function)
+// Task 1: The 'Smart-Map' Logic (Helper Function) - Refined for robustness
 function calculateNextTerm(year, sem) {
+  console.log(`Calculating promotion for Year: ${year}, Sem: ${sem}`);
   const y = parseInt(year);
-  if (sem === 'Sem1') return { nextYear: y.toString(), nextSem: 'Sem2' };
-  if (sem === 'Sem2') {
-    if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
-    return { nextYear: (y + 1).toString(), nextSem: 'Sem1' };
+  const s = sem ? sem.toString().trim() : "";
+  
+  // Handle both "1"/"2" and "Sem1"/"Sem2" formats
+  if (s === 'Sem1' || s === '1') {
+    return { nextYear: y.toString(), nextSem: '2' };
   }
+  if (s === 'Sem2' || s === '2') {
+    if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
+    return { nextYear: (y + 1).toString(), nextSem: '1' };
+  }
+  
+  console.log(`No promotion mapping found for Sem: ${s}, returning current values.`);
   return { nextYear: year, nextSem: sem };
 }
 
 // Task 2: Robust Backend API (POST /api/students/bulk-promote)
 app.post('/api/students/bulk-promote', async (req, res) => {
   const { studentIds } = req.body;
-  if (!studentIds || !studentIds.length) return res.status(400).json({ success: false, message: 'No student IDs provided' });
+  console.log("Bulk Promotion triggered for IDs:", studentIds);
+  
+  if (!studentIds || !studentIds.length) {
+    return res.status(400).json({ success: false, message: 'No student IDs provided' });
+  }
 
-  const session = await mongoose.startSession();
   try {
-    await session.withTransaction(async () => {
-      // Task 3: Concurrency & Lock Prevention
-      await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true, session });
+    // Task 3: Concurrency & Lock Prevention
+    await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true });
 
-      // Process students in batches or individually if they have different targets
-      // For this system, we calculate next term per student
-      for (const sid of studentIds) {
-        const student = await Student.findOne({ id: sid }).session(session);
-        if (!student) continue;
-
-        const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
-
-        // Step A: Update student (Using student._id as requested for ACID safety/best practice if possible, but sid is our primary key)
-        await Student.updateOne(
-          { id: sid },
-          { $set: { year: nextYear, semester: nextSem } },
-          { session }
-        );
-
-        // Step B: Robust Wipe - ensuring fresh start
-        // Instead of deleteMany (which would kill the doc), we unset the student's record from all attendance docs
-        const unsetObj = {};
-        unsetObj[`records.${sid}`] = "";
-        await Attendance.updateMany({}, { $unset: unsetObj }, { session });
+    let updatedCount = 0;
+    for (const sid of studentIds) {
+      const student = await Student.findOne({ id: sid });
+      if (!student) {
+        console.log(`Student NOT found: ${sid}`);
+        continue;
       }
 
-      // Restore system maintenance flag
-      await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }, { session });
-    });
+      const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
+      
+      if (nextYear === student.year && nextSem === student.semester) {
+        console.log(`No change for student ${student.roll}`);
+        continue;
+      }
 
-    res.json({ success: true, message: 'Bulk promotion completed successfully.' });
+      // Step A: Update student
+      await Student.updateOne(
+        { id: sid },
+        { $set: { year: nextYear, semester: nextSem } }
+      );
+
+      // Step B: Robust Wipe - removing student's records from all attendance docs
+      const unsetObj = {};
+      unsetObj[`records.${sid}`] = "";
+      await Attendance.updateMany({}, { $unset: unsetObj });
+      
+      updatedCount++;
+      console.log(`Promoted Student ${student.roll}: ${student.year}/${student.semester} -> ${nextYear}/${nextSem}`);
+    }
+
+    // Restore system maintenance flag
+    await Settings.findOneAndUpdate({}, { isSystemMaintenance: false });
+
+    res.json({ 
+      success: true, 
+      message: `Bulk promotion completed. ${updatedCount} students updated.`,
+      updatedCount 
+    });
   } catch (err) {
-    // Step C: auto-aborted by withTransaction if exception thrown
     console.error("Critical Promotion Engine Failure:", err);
+    // Try to unlock if failed
+    await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }).catch(() => {});
     res.status(500).json({ success: false, message: 'Promotion Engine Failure: ' + err.message });
-  } finally {
-    session.endSession();
   }
 });
 
