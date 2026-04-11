@@ -336,6 +336,22 @@ app.post('/api/attendance/save', async (req, res) => {
     }
 });
 
+// --- Cloning Feature: Fetch previous period attendance ---
+app.get('/api/attendance/previous', async (req, res) => {
+    const { date, section, currentPeriod } = req.query;
+    try {
+        const prevPeriod = parseInt(currentPeriod) - 1;
+        if (prevPeriod < 1) return res.status(400).json({ success: false, message: 'No previous period on the same day' });
+
+        const prevAtt = await Attendance.findOne({ date, section, period: prevPeriod.toString() });
+        if (!prevAtt) return res.status(404).json({ success: false, message: 'No previous period attendance found' });
+
+        res.json({ success: true, records: prevAtt.records });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Task 1: The 'Smart-Map' Logic (Helper Function) - Refined for robustness
 function calculateNextTerm(year, sem) {
   console.log(`Calculating promotion for Year: ${year}, Sem: ${sem}`);
