@@ -107,6 +107,14 @@ const lockSchema = new mongoose.Schema({
 });
 const Lock = mongoose.model('Lock', lockSchema);
 
+// Settings (System Mantainance / Global Flags)
+const settingsSchema = new mongoose.Schema({
+    isSystemMaintenance: { type: Boolean, default: false },
+    maintenanceMsg: String,
+    lastUpdated: { type: Date, default: Date.now }
+});
+const Settings = mongoose.model('Settings', settingsSchema);
+
 // 3. API Routes
 
 // --- Authentication (Generic) ---
@@ -137,68 +145,62 @@ app.post('/api/auth/login', async (req, res) => {
 
 // --- Entities CRUD ---
 
+async function handleRequest(req, res, fn) {
+  try {
+    const result = await fn();
+    res.json(result);
+  } catch (err) {
+    console.error("API Error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 // Departments
-app.get('/api/departments', async (req, res) => res.json(await Department.find()));
-app.post('/api/departments', async (req, res) => res.json(await new Department(req.body).save()));
-app.put('/api/departments/:id', async (req, res) => res.json(await Department.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/departments/:id', async (req, res) => res.json(await Department.findOneAndDelete({ id: req.params.id })));
+app.get('/api/departments', (req, res) => handleRequest(req, res, () => Department.find()));
+app.post('/api/departments', (req, res) => handleRequest(req, res, () => new Department(req.body).save()));
+app.put('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
+app.delete('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndDelete({ id: req.params.id })));
 
 // HODs
-app.get('/api/hods', async (req, res) => res.json(await HOD.find()));
-app.post('/api/hods', async (req, res) => res.json(await new HOD(req.body).save()));
-app.put('/api/hods/:id', async (req, res) => res.json(await HOD.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/hods/:id', async (req, res) => res.json(await HOD.findOneAndDelete({ id: req.params.id })));
+app.get('/api/hods', (req, res) => handleRequest(req, res, () => HOD.find()));
+app.post('/api/hods', (req, res) => handleRequest(req, res, () => new HOD(req.body).save()));
+app.put('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
+app.delete('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndDelete({ id: req.params.id })));
 
 // Teachers
-app.get('/api/teachers', async (req, res) => res.json(await Teacher.find()));
-app.post('/api/teachers', async (req, res) => res.json(await new Teacher(req.body).save()));
-app.put('/api/teachers/:id', async (req, res) => res.json(await Teacher.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/teachers/:id', async (req, res) => res.json(await Teacher.findOneAndDelete({ id: req.params.id })));
+app.get('/api/teachers', (req, res) => handleRequest(req, res, () => Teacher.find()));
+app.post('/api/teachers', (req, res) => handleRequest(req, res, () => new Teacher(req.body).save()));
+app.put('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
+app.delete('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndDelete({ id: req.params.id })));
 
 // Sections
-app.get('/api/sections', async (req, res) => res.json(await Section.find()));
-app.post('/api/sections', async (req, res) => res.json(await new Section(req.body).save()));
-app.delete('/api/sections/:id', async (req, res) => res.json(await Section.findOneAndDelete({ id: req.params.id })));
+app.get('/api/sections', (req, res) => handleRequest(req, res, () => Section.find()));
+app.post('/api/sections', (req, res) => handleRequest(req, res, () => new Section(req.body).save()));
+app.delete('/api/sections/:id', (req, res) => handleRequest(req, res, () => Section.findOneAndDelete({ id: req.params.id })));
 
 // Students
 app.get('/api/students', async (req, res) => {
-  let students = await Student.find();
-  
-  // Specialized Student Sorting Logic:
-  // 1. Primary: Regular numeric endings (e.g., ...01) before Alphanumeric (e.g., ...A0)
-  // 2. Secondary: Year-based (e.g., 24... before 25...)
-  // 3. Tertiary: Natural sort for the rest
-  students.sort((a, b) => {
-    const rA = a.roll.toUpperCase();
-    const rB = b.roll.toUpperCase();
-    
-    // Extract ending (last 2 chars)
-    const endA = rA.slice(-2);
-    const endB = rB.slice(-2);
-    const isNumA = /^\d{2}$/.test(endA);
-    const isNumB = /^\d{2}$/.test(endB);
-    
-    // Priority 1: Numeric endings first
-    if (isNumA && !isNumB) return -1;
-    if (!isNumA && isNumB) return 1;
-    
-    // Priority 2: Year-based (First 2 digits)
-    const yearA = rA.substring(0, 2);
-    const yearB = rB.substring(0, 2);
-    if (yearA !== yearB) return yearA.localeCompare(yearB);
-    
-    // Priority 3: Natural sort
-    return rA.localeCompare(rB, undefined, { numeric: true });
-  });
-  
-  res.json(students);
+  try {
+    let students = await Student.find();
+    students.sort((a, b) => {
+      const rA = a.roll.toUpperCase();
+      const rB = b.roll.toUpperCase();
+      const endA = rA.slice(-2), endB = rB.slice(-2);
+      const isNumA = /^\d{2}$/.test(endA), isNumB = /^\d{2}$/.test(endB);
+      if (isNumA && !isNumB) return -1;
+      if (!isNumA && isNumB) return 1;
+      const yearA = rA.substring(0, 2), yearB = rB.substring(0, 2);
+      if (yearA !== yearB) return yearA.localeCompare(yearB);
+      return rA.localeCompare(rB, undefined, { numeric: true });
+    });
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
-app.post('/api/students', async (req, res) => {
-  const s = new Student({ ...req.body, studentType: req.body.studentType || 'Regular' });
-  res.json(await s.save());
-});
-app.put('/api/students/:id', async (req, res) => res.json(await Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/students/:id', async (req, res) => res.json(await Student.findOneAndDelete({ id: req.params.id })));
+app.post('/api/students', (req, res) => handleRequest(req, res, () => new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save()));
+app.put('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
+app.delete('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndDelete({ id: req.params.id })));
 
 
 
@@ -313,6 +315,12 @@ app.get('/api/attendance-locks', async (req, res) => {
 app.post('/api/attendance/save', async (req, res) => {
     const { date, subjectId, records, section, lockedBy, period = "1" } = req.body;
     try {
+        // Task 3: Concurrency & Lock Prevention
+        const settings = await Settings.findOne();
+        if (settings && settings.isSystemMaintenance) {
+            return res.status(503).json({ success: false, message: 'System is under maintenance for term promotion. Please try again in a few minutes.' });
+        }
+
         // Check if locked for this specific class/section/period (Requirement: preventing multiple staff)
         const existing = await Attendance.findOne({ date, section, period, lockedAt: { $ne: null } });
         if (existing) return res.status(403).json({ success: false, reason: 'locked' });
@@ -326,6 +334,66 @@ app.post('/api/attendance/save', async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error saving attendance' });
     }
+});
+
+// --- BULK PROMOTION LOGIC ---
+
+// Task 1: The 'Smart-Map' Logic (Helper Function)
+function calculateNextTerm(year, sem) {
+  const y = parseInt(year);
+  if (sem === 'Sem1') return { nextYear: y.toString(), nextSem: 'Sem2' };
+  if (sem === 'Sem2') {
+    if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
+    return { nextYear: (y + 1).toString(), nextSem: 'Sem1' };
+  }
+  return { nextYear: year, nextSem: sem };
+}
+
+// Task 2: Robust Backend API (POST /api/students/bulk-promote)
+app.post('/api/students/bulk-promote', async (req, res) => {
+  const { studentIds } = req.body;
+  if (!studentIds || !studentIds.length) return res.status(400).json({ success: false, message: 'No student IDs provided' });
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      // Task 3: Concurrency & Lock Prevention
+      await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true, session });
+
+      // Process students in batches or individually if they have different targets
+      // For this system, we calculate next term per student
+      for (const sid of studentIds) {
+        const student = await Student.findOne({ id: sid }).session(session);
+        if (!student) continue;
+
+        const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
+
+        // Step A: Update student (Using student._id as requested for ACID safety/best practice if possible, but sid is our primary key)
+        await Student.updateOne(
+          { id: sid },
+          { $set: { year: nextYear, semester: nextSem } },
+          { session }
+        );
+
+        // Step B: Robust Wipe - ensuring fresh start
+        // Instead of deleteMany (which would kill the doc), we unset the student's record from all attendance docs
+        const unsetObj = {};
+        unsetObj[`records.${sid}`] = "";
+        await Attendance.updateMany({}, { $unset: unsetObj }, { session });
+      }
+
+      // Restore system maintenance flag
+      await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }, { session });
+    });
+
+    res.json({ success: true, message: 'Bulk promotion completed successfully.' });
+  } catch (err) {
+    // Step C: auto-aborted by withTransaction if exception thrown
+    console.error("Critical Promotion Engine Failure:", err);
+    res.status(500).json({ success: false, message: 'Promotion Engine Failure: ' + err.message });
+  } finally {
+    session.endSession();
+  }
 });
 
 // 4. Start the Server
