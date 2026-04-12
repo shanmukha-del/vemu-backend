@@ -221,44 +221,21 @@ app.post('/api/admin/clear-attendance', async (req, res) => {
     const students = await Student.find(studentFilter);
     const studentIds = students.map(s => s.id);
 
-    // 3. ATOMIC RESET: Delete/Reset Attendance & Locks
-    // If we have specific students, we wipe their marks. 
-    // If the filter targets a whole section/year/sem, we MUST also unlock.
-    
-    const allAtt = await Attendance.find();
-    for (let att of allAtt) {
-      let changed = false;
+    // 3. ATOMIC RESET: Delete/Reset Attendance & Locks (Optimized)
+    if (sectionLabels.length > 0) {
+      // Clear specific sections entirely (Faster & Atomic)
+      await Attendance.updateMany(
+        { section: { $in: sectionLabels } },
+        { $set: { records: {}, lockedAt: null, lockedBy: null } }
+      );
       
-      // Wipe specific student records
-      studentIds.forEach(id => {
-        if (att.records && att.records[id]) {
-          delete att.records[id];
-          changed = true;
-        }
-      });
-      
-      // If the attendance document belongs to a target section, UNLOCK it
-      if (sectionLabels.includes(att.section)) {
-        att.lockedAt = null;
-        att.lockedBy = null;
-        changed = true;
-      }
-
-      if (changed) {
-        att.markModified('records');
-        await att.save();
-      }
-    }
-    
-    // Also clear the secondary Lock collection if any exist for these sections
-    // Lock key format: date|subjectId|section|period
-    const allLocks = await Lock.find();
-    for (let lock of allLocks) {
-      const parts = lock.lockKey.split('|');
-      const lockSection = parts[2];
-      if (sectionLabels.includes(lockSection)) {
-        await Lock.findByIdAndDelete(lock._id);
-      }
+      // Also clear secondary locks
+      await Lock.deleteMany({ lockKey: { $regex: new RegExp(`.*\\|.*\\|(${sectionLabels.join('|')})\\|.*`) } });
+    } else if (studentIds.length > 0) {
+      // If we only have specific students, unset their specific keys in all records
+      const unsetObj = {};
+      studentIds.forEach(sid => unsetObj[`records.${sid}`] = "");
+      await Attendance.updateMany({}, { $unset: unsetObj });
     }
 
     res.json({ success: true, message: 'Attendance records and locks cleared successfully.' });
