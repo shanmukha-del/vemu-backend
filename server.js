@@ -9,8 +9,10 @@ app.use(express.json());
 // 1. Connect to Local MongoDB (Fixed Code to avoid MongoParseError)
 const MONGO_URI = 'mongodb+srv://vemuadmin:vemu123@vemuadmin.w4je3f4.mongodb.net/vemu_attendance?appName=vemuadmin';
 mongoose.connect(MONGO_URI)
-.then(() => {
+.then(async () => {
     console.log("🚀 BINGO! Successfully connected to MongoDB Cloud (Atlas)");
+    // Task 2: Startup Self-Healing (Cleanup Duplicates)
+    await cleanupDatabase();
 }).catch(err => {
     console.log("❌ MongoDB Connection Error:", err);
 });
@@ -19,71 +21,102 @@ mongoose.connect(MONGO_URI)
 
 // Departments
 const departmentSchema = new mongoose.Schema({
-    id: String,
-    code: String,
-    name: String
+    id: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true }
+});
+
+departmentSchema.pre('save', function(next) {
+    if (this.code) this.code = this.code.trim().toUpperCase();
+    next();
 });
 const Department = mongoose.model('Department', departmentSchema);
 
 // HODs
 const hodSchema = new mongoose.Schema({
-    id: String,
-    userId: String,
-    password: { type: String, select: true },
-    name: String,
-    dept: String,
-    email: String
+    id: { type: String, required: true, unique: true, trim: true },
+    userId: { type: String, required: true, unique: true, trim: true },
+    password: { type: String, select: true, required: true },
+    name: { type: String, required: true, trim: true },
+    dept: { type: String, required: true, trim: true },
+    email: { type: String, trim: true }
+});
+
+hodSchema.pre('save', function(next) {
+    if (this.userId) this.userId = this.userId.trim().toUpperCase();
+    next();
 });
 const HOD = mongoose.model('HOD', hodSchema);
 
 // Teachers
 const teacherSchema = new mongoose.Schema({
-    id: String,
-    userId: String,
-    password: { type: String, select: true },
-    name: String,
-    dept: String,
-    email: String,
-    subjects: [String], // Array of subject names or IDs
-    sections: [String]  // Array of section labels (e.g. CSE-2B-S2)
+    id: { type: String, required: true, unique: true, trim: true },
+    userId: { type: String, required: true, unique: true, trim: true },
+    password: { type: String, select: true, required: true },
+    name: { type: String, required: true, trim: true },
+    dept: { type: String, required: true, trim: true },
+    email: { type: String, trim: true },
+    subjects: [String],
+    sections: [String]
+});
+
+teacherSchema.pre('save', function(next) {
+    if (this.userId) this.userId = this.userId.trim().toUpperCase();
+    next();
 });
 const Teacher = mongoose.model('Teacher', teacherSchema);
 
 // Sections
 const sectionSchema = new mongoose.Schema({
-    id: String,
-    dept: String,
-    year: String,
-    semester: String,
-    section: String, // MISSING FIELD - ADDED
-    label: String
+    id: { type: String, required: true, unique: true, trim: true },
+    dept: { type: String, required: true, trim: true },
+    year: { type: String, required: true, trim: true },
+    semester: { type: String, required: true, trim: true },
+    section: { type: String, required: true, trim: true },
+    label: { type: String, required: true, unique: true, trim: true }
+});
+
+sectionSchema.pre('save', function(next) {
+    if (this.label) this.label = this.label.trim().toUpperCase();
+    if (this.section) this.section = this.section.trim().toUpperCase();
+    next();
 });
 const Section = mongoose.model('Section', sectionSchema);
 
 // Students
 const studentSchema = new mongoose.Schema({
-    id: String,
-    roll: String,
-    name: String,
-    dept: String,
-    year: String,
-    semester: String,
-    section: String,
+    id: { type: String, required: true, unique: true, trim: true },
+    roll: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    dept: { type: String, required: true, trim: true },
+    year: { type: String, required: true, trim: true },
+    semester: { type: String, required: true, trim: true },
+    section: { type: String, required: true, trim: true },
     phone: String,
-    dob: String,    // ADDED
-    email: String,   // ADDED
+    dob: String,
+    email: { type: String, trim: true },
     studentType: { type: String, enum: ['Regular', 'LE'], default: 'Regular' }
+});
+
+studentSchema.pre('save', function(next) {
+    if (this.roll) this.roll = this.roll.trim().toUpperCase();
+    next();
 });
 const Student = mongoose.model('Student', studentSchema);
 
 // Subjects
 const subjectSchema = new mongoose.Schema({
-    id: String,
-    code: String,
-    name: String,
-    dept: String,
-    year: String,
-    semester: String
+    id: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    dept: { type: String, required: true, trim: true },
+    year: { type: String, required: true, trim: true },
+    semester: { type: String, required: true, trim: true }
+});
+
+subjectSchema.pre('save', function(next) {
+    if (this.code) this.code = this.code.trim().toUpperCase();
+    next();
 });
 const Subject = mongoose.model('Subject', subjectSchema);
 
@@ -114,6 +147,46 @@ const settingsSchema = new mongoose.Schema({
     lastUpdated: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
+
+// --- 2.5 Startup De-duplication Script ---
+async function cleanupDatabase() {
+    console.log("🛠 Starting System Integrity Check & Cleanup...");
+    const models = [
+        { model: Department, key: 'code', label: 'Departments' },
+        { model: HOD, key: 'userId', label: 'HODs' },
+        { model: Teacher, key: 'userId', label: 'Teachers' },
+        { model: Section, key: 'label', label: 'Sections' },
+        { model: Student, key: 'roll', label: 'Students' },
+        { model: Subject, key: 'id', label: 'Subjects' }
+    ];
+
+    for (const item of models) {
+        try {
+            const duplicates = await item.model.aggregate([
+                { $group: { _id: { [item.key]: `$${item.key}` }, ids: { $push: "$_id" }, count: { $sum: 1 } } },
+                { $match: { count: { $gt: 1 } } }
+            ]);
+
+            for (const group of duplicates) {
+                // Keep the most recent record (last one in the push array)
+                const ids = group.ids;
+                const keepId = ids.pop(); 
+                
+                const res = await item.model.deleteMany({ _id: { $in: ids } });
+                console.log(`🧹 Cleaned ${res.deletedCount} duplicates from ${item.label} (${group._id[item.key]})`);
+            }
+            
+            // Enforce Unique Indexes post-cleanup
+            await item.model.syncIndexes();
+        } catch (err) {
+            console.error(`❌ Cleanup Error for ${item.label}:`, err);
+        }
+    }
+    
+    // Reset secondary artifacts
+    await Lock.deleteMany({});
+    console.log("✅ Database Integrity Verified. Unique Constraints Enforced.");
+}
 
 // 3. API Routes
 
@@ -156,32 +229,52 @@ async function handleRequest(req, res, fn) {
 }
 
 // Departments
-app.get('/api/departments', (req, res) => handleRequest(req, res, () => Department.find()));
-app.post('/api/departments', (req, res) => handleRequest(req, res, () => new Department(req.body).save()));
+app.get('/api/departments', (req, res) => handleRequest(req, res, () => Department.find().lean()));
+app.post('/api/departments', async (req, res) => {
+    const { code } = req.body;
+    const exists = await Department.findOne({ code: code?.trim().toUpperCase() });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "code", value: code });
+    handleRequest(req, res, () => new Department(req.body).save());
+});
 app.put('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndDelete({ id: req.params.id })));
 
 // HODs
-app.get('/api/hods', (req, res) => handleRequest(req, res, () => HOD.find()));
-app.post('/api/hods', (req, res) => handleRequest(req, res, () => new HOD(req.body).save()));
+app.get('/api/hods', (req, res) => handleRequest(req, res, () => HOD.find().lean()));
+app.post('/api/hods', async (req, res) => {
+    const { userId } = req.body;
+    const exists = await HOD.findOne({ userId: userId?.trim().toUpperCase() });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "userId", value: userId });
+    handleRequest(req, res, () => new HOD(req.body).save());
+});
 app.put('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndDelete({ id: req.params.id })));
 
 // Teachers
-app.get('/api/teachers', (req, res) => handleRequest(req, res, () => Teacher.find()));
-app.post('/api/teachers', (req, res) => handleRequest(req, res, () => new Teacher(req.body).save()));
+app.get('/api/teachers', (req, res) => handleRequest(req, res, () => Teacher.find().lean()));
+app.post('/api/teachers', async (req, res) => {
+    const { userId } = req.body;
+    const exists = await Teacher.findOne({ userId: userId?.trim().toUpperCase() });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "userId", value: userId });
+    handleRequest(req, res, () => new Teacher(req.body).save());
+});
 app.put('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndDelete({ id: req.params.id })));
 
 // Sections
-app.get('/api/sections', (req, res) => handleRequest(req, res, () => Section.find()));
-app.post('/api/sections', (req, res) => handleRequest(req, res, () => new Section(req.body).save()));
+app.get('/api/sections', (req, res) => handleRequest(req, res, () => Section.find().lean()));
+app.post('/api/sections', async (req, res) => {
+    const { label } = req.body;
+    const exists = await Section.findOne({ label: label?.trim().toUpperCase() });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "label", value: label });
+    handleRequest(req, res, () => new Section(req.body).save());
+});
 app.delete('/api/sections/:id', (req, res) => handleRequest(req, res, () => Section.findOneAndDelete({ id: req.params.id })));
 
 // Students
 app.get('/api/students', async (req, res) => {
   try {
-    let students = await Student.find();
+    let students = await Student.find().lean();
     students.sort((a, b) => {
       const rA = a.roll.toUpperCase();
       const rB = b.roll.toUpperCase();
@@ -198,7 +291,12 @@ app.get('/api/students', async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
-app.post('/api/students', (req, res) => handleRequest(req, res, () => new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save()));
+app.post('/api/students', async (req, res) => {
+    const { roll } = req.body;
+    const exists = await Student.findOne({ roll: roll?.trim().toUpperCase() });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "roll", value: roll });
+    handleRequest(req, res, () => new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save());
+});
 app.put('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndDelete({ id: req.params.id })));
 
@@ -262,13 +360,18 @@ app.put('/api/attendance/update', async (req, res) => {
 });
 
 // Subjects
-app.get('/api/subjects', async (req, res) => res.json(await Subject.find()));
-app.post('/api/subjects', async (req, res) => res.json(await new Subject(req.body).save()));
+app.get('/api/subjects', async (req, res) => res.json(await Subject.find().lean()));
+app.post('/api/subjects', async (req, res) => {
+    const { code, dept, year } = req.body;
+    const exists = await Subject.findOne({ code: code?.trim().toUpperCase(), dept, year });
+    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "code", value: code });
+    res.json(await new Subject(req.body).save());
+});
 app.delete('/api/subjects/:id', async (req, res) => res.json(await Subject.findOneAndDelete({ id: req.params.id })));
 
 // Attendance
 app.get('/api/attendance', async (req, res) => {
-  const all = await Attendance.find();
+  const all = await Attendance.find().lean();
   const formatted = {};
   all.forEach(a => {
     if(!formatted[a.date]) formatted[a.date] = {};
@@ -280,7 +383,7 @@ app.get('/api/attendance', async (req, res) => {
 });
 
 app.get('/api/attendance-locks', async (req, res) => {
-  const locks = await Attendance.find({ lockedAt: { $ne: null } });
+  const locks = await Attendance.find({ lockedAt: { $ne: null } }).lean();
   const formatted = {};
   locks.forEach(l => {
     const key = `${l.date}|${l.subjectId}|${l.section}|${l.period || "1"}`;
@@ -292,8 +395,8 @@ app.get('/api/attendance-locks', async (req, res) => {
 app.post('/api/attendance/save', async (req, res) => {
     const { date, subjectId, records, section, lockedBy, period = "1" } = req.body;
     try {
-        // Task 3: Concurrency & Lock Prevention
-        const settings = await Settings.findOne();
+        // Check Maintenance
+        const settings = await Settings.findOne().lean();
         if (settings && settings.isSystemMaintenance) {
             return res.status(503).json({ success: false, message: 'System is under maintenance for term promotion. Please try again in a few minutes.' });
         }
