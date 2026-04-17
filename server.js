@@ -510,69 +510,125 @@ app.post('/api/students/bulk-promote', async (req, res) => {
   }
 });
 
-// --- High Performance Reports API ---
+// --- High Performance Reports API (Student-Centric & Type-Agnostic) ---
 app.get('/api/attendance/reports', async (req, res) => {
-    const { dept, year, section, semester, from, to } = req.query;
+    let { dept, year, section, semester, from, to, refresh } = req.query;
+    
+    // Mission: 100% Data-Type Agnostic
+    const normalizedYear = year ? String(year).trim() : null;
+    const normalizedSem = semester ? String(semester).trim() : null;
+    const normalizedDept = dept ? String(dept).trim() : null;
+
     try {
-        const query = {};
-        if (from || to) {
-            query.date = {};
-            if (from) query.date.$gte = from;
-            if (to) query.date.$lte = to;
-        }
-        if (section) query.section = section;
+        console.log(`[Reports] Generating for Dept: ${normalizedDept}, Year: ${normalizedYear}, Sec: ${section}, Sem: ${normalizedSem} (${from} to ${to})`);
 
-        // If no section but have dept/year/sem, we need to find matching sections first
-        if (!section && (dept || year || semester)) {
+        // 1. Force Date Normalization (Interpret at 00:00:00 and 23:59:59)
+        // Since we store as 'YYYY-MM-DD' strings, simple string comparison covers the full day.
+        // We ensure the date strings are in correct format.
+        const fromDate = from || '1970-01-01';
+        const toDate = to || '2099-12-31';
+
+        // 2. Identify Target Students (The Source of Truth)
+        // We filter students first to ensure even those with 0 attendance appear.
+        const studentQuery = {};
+        if (normalizedDept) studentQuery.dept = normalizedDept;
+        if (normalizedYear) studentQuery.year = normalizedYear;
+        if (normalizedSem) studentQuery.semester = normalizedSem;
+        if (section) {
+            // Check if it's a section label (e.g. CSE-3A-S1) or just a section code ('A')
+            if (section.includes('-')) {
+                // Parse label like "DEPT-YEARSEC-SSEM"
+                const parts = section.split('-');
+                if (parts[1]) {
+                    const secPart = parts[1].replace(/\d+/g, ''); // Extract 'A' from '3A'
+                    studentQuery.section = secPart;
+                }
+            } else {
+                studentQuery.section = section;
+            }
+        }
+
+        const students = await Student.find(studentQuery).lean();
+        if (!students.length) {
+            return res.json({ success: true, data: [], message: 'No students found matching these criteria.' });
+        }
+
+        const studentIds = students.map(s => s.id);
+
+        // 3. Self-Healing Aggregation Pipeline
+        const attQuery = {
+            date: { $gte: fromDate, $lte: toDate }
+        };
+
+        // Resolve sections for the attendance filter
+        if (section) {
+            attQuery.section = section;
+        } else {
             const secFilter = {};
-            if (dept) secFilter.dept = dept;
-            if (year) secFilter.year = year;
-            if (semester) secFilter.semester = semester;
+            if (normalizedDept) secFilter.dept = normalizedDept;
+            if (normalizedYear) secFilter.year = normalizedYear;
+            if (normalizedSem) secFilter.semester = normalizedSem;
             const matchingSecs = await Section.find(secFilter).lean();
-            query.section = { $in: matchingSecs.map(s => s.label) };
+            attQuery.section = { $in: matchingSecs.map(s => s.label) };
         }
 
-        const pipeline = [
-            { $match: query },
+        const aggregated = await Attendance.aggregate([
+            { $match: attQuery },
             { $project: { subjectId: 1, section: 1, date: 1, recArray: { $objectToArray: "$records" } } },
             { $unwind: "$recArray" },
+            { $match: { "recArray.k": { $in: studentIds } } }, // Only relevant students
             { $group: {
                 _id: { studentId: "$recArray.k", subjectId: "$subjectId" },
                 present: { $sum: { $cond: [{ $eq: ["$recArray.v", "present"] }, 1, 0] } },
                 absent: { $sum: { $cond: [{ $eq: ["$recArray.v", "absent"] }, 1, 0] } },
                 total: { $sum: 1 }
-            }},
-            { $project: {
-                studentId: "$_id.studentId",
-                subjectId: "$_id.subjectId",
-                present: 1,
-                absent: 1,
-                total: 1,
-                pct: { $round: [{ $multiply: [{ $divide: ["$present", "$total"] }, 100] }, 0] }
             }}
-        ];
-
-        const aggregated = await Attendance.aggregate(pipeline);
-
-        // Enrich with Student and Subject Details
-        const studentIds = [...new Set(aggregated.map(a => a.studentId))];
-        const subjectIds = [...new Set(aggregated.map(a => a.subjectId))];
-
-        const [students, subjects] = await Promise.all([
-            Student.find({ id: { $in: studentIds } }).lean(),
-            Subject.find({ id: { $in: subjectIds } }).lean()
         ]);
 
-        const studentMap = Object.fromEntries(students.map(s => [s.id, s]));
+        // 4. Data-Link Integrity: Merge Student list with Aggregated Stats
+        const subjectIds = [...new Set(aggregated.map(a => a._id.subjectId))];
+        const subjects = await Subject.find({ id: { $in: subjectIds } }).lean();
         const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
+        const studentMap = Object.fromEntries(students.map(s => [s.id, s]));
 
-        const results = aggregated.map(a => ({
-            ...a,
-            student: studentMap[a.studentId],
-            subject: subjectMap[a.subjectId]
-        })).filter(r => r.student && r.subject);
+        const results = [];
+        const studentsProcessed = new Set();
 
-        // Final Alphanumeric Sort by Roll Number
+        aggregated.forEach(a => {
+            const s = studentMap[a._id.studentId];
+            const sub = subjectMap[a._id.subjectId];
+            if (s && sub) {
+                results.push({
+                    studentId: s.id,
+                    subjectId: sub.id,
+                    present: a.present,
+                    absent: a.absent,
+                    total: a.total,
+                    pct: Math.round((a.present / a.total) * 100),
+                    student: s,
+                    subject: sub
+                });
+                studentsProcessed.add(s.id);
+            }
+        });
+
+        // Add students with 0 records
+        students.forEach(s => {
+            if (!studentsProcessed.has(s.id)) {
+                results.push({
+                    studentId: s.id,
+                    subjectId: 'none',
+                    present: 0,
+                    absent: 0,
+                    total: 0,
+                    pct: 0,
+                    student: s,
+                    subject: { name: 'No Records Found', code: 'N/A', semester: s.semester }
+                });
+            }
+        });
+
+        // 5. Final Alphanumeric Sort by Roll Number
         results.sort((a, b) => a.student.roll.localeCompare(b.student.roll, undefined, { numeric: true, sensitivity: 'base' }));
 
         res.json({ success: true, data: results });
