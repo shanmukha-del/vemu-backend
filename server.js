@@ -510,6 +510,78 @@ app.post('/api/students/bulk-promote', async (req, res) => {
   }
 });
 
+// --- High Performance Reports API ---
+app.get('/api/attendance/reports', async (req, res) => {
+    const { dept, year, section, semester, from, to } = req.query;
+    try {
+        const query = {};
+        if (from || to) {
+            query.date = {};
+            if (from) query.date.$gte = from;
+            if (to) query.date.$lte = to;
+        }
+        if (section) query.section = section;
+
+        // If no section but have dept/year/sem, we need to find matching sections first
+        if (!section && (dept || year || semester)) {
+            const secFilter = {};
+            if (dept) secFilter.dept = dept;
+            if (year) secFilter.year = year;
+            if (semester) secFilter.semester = semester;
+            const matchingSecs = await Section.find(secFilter).lean();
+            query.section = { $in: matchingSecs.map(s => s.label) };
+        }
+
+        const pipeline = [
+            { $match: query },
+            { $project: { subjectId: 1, section: 1, date: 1, recArray: { $objectToArray: "$records" } } },
+            { $unwind: "$recArray" },
+            { $group: {
+                _id: { studentId: "$recArray.k", subjectId: "$subjectId" },
+                present: { $sum: { $cond: [{ $eq: ["$recArray.v", "present"] }, 1, 0] } },
+                absent: { $sum: { $cond: [{ $eq: ["$recArray.v", "absent"] }, 1, 0] } },
+                total: { $sum: 1 }
+            }},
+            { $project: {
+                studentId: "$_id.studentId",
+                subjectId: "$_id.subjectId",
+                present: 1,
+                absent: 1,
+                total: 1,
+                pct: { $round: [{ $multiply: [{ $divide: ["$present", "$total"] }, 100] }, 0] }
+            }}
+        ];
+
+        const aggregated = await Attendance.aggregate(pipeline);
+
+        // Enrich with Student and Subject Details
+        const studentIds = [...new Set(aggregated.map(a => a.studentId))];
+        const subjectIds = [...new Set(aggregated.map(a => a.subjectId))];
+
+        const [students, subjects] = await Promise.all([
+            Student.find({ id: { $in: studentIds } }).lean(),
+            Subject.find({ id: { $in: subjectIds } }).lean()
+        ]);
+
+        const studentMap = Object.fromEntries(students.map(s => [s.id, s]));
+        const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
+
+        const results = aggregated.map(a => ({
+            ...a,
+            student: studentMap[a.studentId],
+            subject: subjectMap[a.subjectId]
+        })).filter(r => r.student && r.subject);
+
+        // Final Alphanumeric Sort by Roll Number
+        results.sort((a, b) => a.student.roll.localeCompare(b.student.roll, undefined, { numeric: true, sensitivity: 'base' }));
+
+        res.json({ success: true, data: results });
+    } catch (err) {
+        console.error("Reports API Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // 4. Start the Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
