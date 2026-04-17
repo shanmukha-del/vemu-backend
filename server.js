@@ -555,22 +555,33 @@ app.get('/api/attendance/reports', async (req, res) => {
 
         const studentIds = students.map(s => s.id);
 
-        // 3. Self-Healing Aggregation Pipeline
+        // 3. Self-Healing Aggregation Pipeline: Resolve Sections
+        const secFilter = {};
+        if (normalizedDept) secFilter.dept = normalizedDept;
+        if (normalizedYear) secFilter.year = normalizedYear;
+        if (normalizedSem) secFilter.semester = normalizedSem;
+
         const attQuery = {
             date: { $gte: fromDate, $lte: toDate }
         };
 
-        // Resolve sections for the attendance filter
         if (section) {
-            attQuery.section = section;
+            if (section.includes('-')) {
+                // If the section is already a label, use it directly
+                attQuery.section = section;
+            } else {
+                // If it's a letter (A, B, etc), find matching full labels
+                secFilter.section = section;
+                const matchingSecs = await Section.find(secFilter).lean();
+                attQuery.section = { $in: matchingSecs.map(s => s.label) };
+            }
         } else {
-            const secFilter = {};
-            if (normalizedDept) secFilter.dept = normalizedDept;
-            if (normalizedYear) secFilter.year = normalizedYear;
-            if (normalizedSem) secFilter.semester = normalizedSem;
+            // No section selected (All Sections)
             const matchingSecs = await Section.find(secFilter).lean();
             attQuery.section = { $in: matchingSecs.map(s => s.label) };
         }
+
+        console.log(`[Reports] Resolved Attendance Sections:`, attQuery.section);
 
         const aggregated = await Attendance.aggregate([
             { $match: attQuery },
