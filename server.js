@@ -512,19 +512,16 @@ app.post('/api/students/bulk-promote', async (req, res) => {
 
 // --- High Performance Reports API (Student-Centric & Type-Agnostic) ---
 app.get('/api/attendance/reports', async (req, res) => {
-    let { dept, year, section, semester, from, to, refresh } = req.query;
+    let { dept, year, section, semester, from, to, refresh, subjectId } = req.query;
     
-    // Mission: 100% Data-Type Agnostic
     const normalizedYear = year ? String(year).trim() : null;
     const normalizedSem = semester ? String(semester).trim() : null;
     const normalizedDept = dept ? String(dept).trim() : null;
 
     try {
-        console.log(`[Reports] Generating for Dept: ${normalizedDept}, Year: ${normalizedYear}, Sec: ${section}, Sem: ${normalizedSem} (${from} to ${to})`);
+        console.log(`[Reports] Generating for Dept: ${normalizedDept}, Year: ${normalizedYear}, Sec: ${section}, Sem: ${normalizedSem}, Sub: ${subjectId} (${from} to ${to})`);
 
         // 1. Force Date Normalization (Interpret at 00:00:00 and 23:59:59)
-        // Since we store as 'YYYY-MM-DD' strings, simple string comparison covers the full day.
-        // We ensure the date strings are in correct format.
         const fromDate = from || '1970-01-01';
         const toDate = to || '2099-12-31';
 
@@ -535,12 +532,10 @@ app.get('/api/attendance/reports', async (req, res) => {
         if (normalizedYear) studentQuery.year = normalizedYear;
         if (normalizedSem) studentQuery.semester = normalizedSem;
         if (section) {
-            // Check if it's a section label (e.g. CSE-3A-S1) or just a section code ('A')
             if (section.includes('-')) {
-                // Parse label like "DEPT-YEARSEC-SSEM"
                 const parts = section.split('-');
                 if (parts[1]) {
-                    const secPart = parts[1].replace(/\d+/g, ''); // Extract 'A' from '3A'
+                    const secPart = parts[1].replace(/\d+/g, ''); 
                     studentQuery.section = secPart;
                 }
             } else {
@@ -552,7 +547,6 @@ app.get('/api/attendance/reports', async (req, res) => {
         if (!students.length) {
             return res.json({ success: true, data: [], message: 'No students found matching these criteria.' });
         }
-
         const studentIds = students.map(s => s.id);
 
         // 3. Self-Healing Aggregation Pipeline: Resolve Sections
@@ -565,18 +559,17 @@ app.get('/api/attendance/reports', async (req, res) => {
             date: { $gte: fromDate, $lte: toDate }
         };
 
+        if (subjectId) attQuery.subjectId = subjectId;
+
         if (section) {
             if (section.includes('-')) {
-                // If the section is already a label, use it directly
                 attQuery.section = section;
             } else {
-                // If it's a letter (A, B, etc), find matching full labels
                 secFilter.section = section;
                 const matchingSecs = await Section.find(secFilter).lean();
                 attQuery.section = { $in: matchingSecs.map(s => s.label) };
             }
         } else {
-            // No section selected (All Sections)
             const matchingSecs = await Section.find(secFilter).lean();
             attQuery.section = { $in: matchingSecs.map(s => s.label) };
         }
