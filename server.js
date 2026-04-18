@@ -4,14 +4,15 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors({
-    origin: '*', 
+    origin: ['https://vemuams.netlify.app', 'http://localhost:5000', 'http://127.0.0.1:5503', 'http://127.0.0.1:5500', 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 app.use(express.json());
 
 // 1. Database Connection Logic
-const PORT = 5000; 
+const PORT = process.env.PORT || 5000; 
 
 const MONGO_URI = 'mongodb://vemuadmin:vemu123@ac-tp832eg-shard-00-00.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-01.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-02.w4je3f4.mongodb.net:27017/vemu_attendance?ssl=true&replicaSet=atlas-zbds82-shard-0&authSource=admin&retryWrites=true&w=majority';
 
