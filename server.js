@@ -49,9 +49,8 @@ const departmentSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true }
 });
 
-departmentSchema.pre('save', function (next) {
+departmentSchema.pre('save', async function () {
     if (this.code) this.code = this.code.trim().toUpperCase();
-    next();
 });
 const Department = mongoose.model('Department', departmentSchema);
 
@@ -65,9 +64,8 @@ const hodSchema = new mongoose.Schema({
     email: { type: String, trim: true }
 });
 
-hodSchema.pre('save', function (next) {
+hodSchema.pre('save', async function () {
     if (this.userId) this.userId = this.userId.trim().toUpperCase();
-    next();
 });
 const HOD = mongoose.model('HOD', hodSchema);
 
@@ -83,9 +81,8 @@ const teacherSchema = new mongoose.Schema({
     sections: [String]
 });
 
-teacherSchema.pre('save', function (next) {
+teacherSchema.pre('save', async function () {
     if (this.userId) this.userId = this.userId.trim().toUpperCase();
-    next();
 });
 const Teacher = mongoose.model('Teacher', teacherSchema);
 
@@ -99,10 +96,9 @@ const sectionSchema = new mongoose.Schema({
     label: { type: String, required: true, unique: true, trim: true }
 });
 
-sectionSchema.pre('save', function (next) {
+sectionSchema.pre('save', async function () {
     if (this.label) this.label = this.label.trim().toUpperCase();
     if (this.section) this.section = this.section.trim().toUpperCase();
-    next();
 });
 const Section = mongoose.model('Section', sectionSchema);
 
@@ -121,9 +117,8 @@ const studentSchema = new mongoose.Schema({
     studentType: { type: String, enum: ['Regular', 'LE'], default: 'Regular' }
 });
 
-studentSchema.pre('save', function (next) {
+studentSchema.pre('save', async function () {
     if (this.roll) this.roll = this.roll.trim().toUpperCase();
-    next();
 });
 const Student = mongoose.model('Student', studentSchema);
 
@@ -137,9 +132,8 @@ const subjectSchema = new mongoose.Schema({
     semester: { type: String, required: true, trim: true }
 });
 
-subjectSchema.pre('save', function (next) {
+subjectSchema.pre('save', async function () {
     if (this.code) this.code = this.code.trim().toUpperCase();
-    next();
 });
 const Subject = mongoose.model('Subject', subjectSchema);
 
