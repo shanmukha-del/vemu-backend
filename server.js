@@ -10,9 +10,13 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 1. Connect to Local MongoDB (Fixed Code to avoid MongoParseError)
-const MONGO_URI = 'mongodb+srv://vemuadmin:vemu123@vemuadmin.w4je3f4.mongodb.net/vemu_attendance?appName=vemuadmin';
-mongoose.connect(MONGO_URI)
+// 1. DIRECT SHARD CONNECTION (Bypasses the failing SRV lookup)
+const MONGO_URI = 'mongodb://vemuadmin:vemu123@ac-tp832eg-shard-00-00.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-01.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-02.w4je3f4.mongodb.net:27017/vemu_attendance?ssl=true&replicaSet=atlas-zbds82-shard-0&authSource=admin&retryWrites=true&w=majority';
+
+mongoose.connect(MONGO_URI, {
+    serverSelectionTimeoutMS: 20000, 
+    family: 4 
+})
 .then(async () => {
     console.log("🚀 BINGO! Successfully connected to MongoDB Cloud (Atlas)");
     // Task 2: Startup Self-Healing (Cleanup Duplicates)
