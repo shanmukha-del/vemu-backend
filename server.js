@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: '*', // For production, replace with your specific Netlify domain
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // 1. Connect to Local MongoDB (Fixed Code to avoid MongoParseError)
@@ -221,53 +225,98 @@ app.post('/api/auth/login', async (req, res) => {
 async function handleRequest(req, res, fn) {
   try {
     const result = await fn();
-    res.json(result);
+    // Return standard success wrapper
+    res.json({ success: true, data: result });
   } catch (err) {
-    console.error("API Error:", err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("❌ API Error:", err);
+    
+    // Handle MongoDB Unique Constraint (11000)
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyPattern || {})[0] || 'field';
+        return res.status(409).json({ 
+            success: false, 
+            error: "Duplicate Conflict",
+            message: `The ${field} already exists in the system.`,
+            field 
+        });
+    }
+
+    res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
   }
 }
 
 // Departments
 app.get('/api/departments', (req, res) => handleRequest(req, res, () => Department.find().lean()));
-app.post('/api/departments', async (req, res) => {
-    const { code } = req.body;
-    const exists = await Department.findOne({ code: code?.trim().toUpperCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "code", value: code });
-    handleRequest(req, res, () => new Department(req.body).save());
+app.post('/api/departments', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { code } = req.body;
+        if (!code) throw new Error("Department code is required");
+        const exists = await Department.findOne({ code: code.trim().toUpperCase() });
+        if (exists) {
+            const err = new Error("Duplicate Department Code");
+            err.code = 11000;
+            err.keyPattern = { code: 1 };
+            throw err;
+        }
+        return await new Department(req.body).save();
+    });
 });
 app.put('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndDelete({ id: req.params.id })));
 
 // HODs
 app.get('/api/hods', (req, res) => handleRequest(req, res, () => HOD.find().lean()));
-app.post('/api/hods', async (req, res) => {
-    const { userId } = req.body;
-    const exists = await HOD.findOne({ userId: userId?.trim().toUpperCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "userId", value: userId });
-    handleRequest(req, res, () => new HOD(req.body).save());
+app.post('/api/hods', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { userId } = req.body;
+        if (!userId) throw new Error("HOD User ID is required");
+        const exists = await HOD.findOne({ userId: userId.trim().toUpperCase() });
+        if (exists) {
+            const err = new Error("HOD with this User ID already exists");
+            err.code = 11000;
+            err.keyPattern = { userId: 1 };
+            throw err;
+        }
+        return await new HOD(req.body).save();
+    });
 });
 app.put('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndDelete({ id: req.params.id })));
 
 // Teachers
 app.get('/api/teachers', (req, res) => handleRequest(req, res, () => Teacher.find().lean()));
-app.post('/api/teachers', async (req, res) => {
-    const { userId } = req.body;
-    const exists = await Teacher.findOne({ userId: userId?.trim().toUpperCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "userId", value: userId });
-    handleRequest(req, res, () => new Teacher(req.body).save());
+app.post('/api/teachers', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { userId } = req.body;
+        if (!userId) throw new Error("Teacher User ID is required");
+        const exists = await Teacher.findOne({ userId: userId.trim().toUpperCase() });
+        if (exists) {
+            const err = new Error("Teacher with this User ID already exists");
+            err.code = 11000;
+            err.keyPattern = { userId: 1 };
+            throw err;
+        }
+        return await new Teacher(req.body).save();
+    });
 });
 app.put('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndDelete({ id: req.params.id })));
 
 // Sections
 app.get('/api/sections', (req, res) => handleRequest(req, res, () => Section.find().lean()));
-app.post('/api/sections', async (req, res) => {
-    const { label } = req.body;
-    const exists = await Section.findOne({ label: label?.trim().toUpperCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "label", value: label });
-    handleRequest(req, res, () => new Section(req.body).save());
+app.post('/api/sections', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { label } = req.body;
+        if (!label) throw new Error("Section label is required");
+        const exists = await Section.findOne({ label: label.trim().toUpperCase() });
+        if (exists) {
+            const err = new Error("Section label already exists");
+            err.code = 11000;
+            err.keyPattern = { label: 1 };
+            throw err;
+        }
+        return await new Section(req.body).save();
+    });
 });
 app.delete('/api/sections/:id', (req, res) => handleRequest(req, res, () => Section.findOneAndDelete({ id: req.params.id })));
 
@@ -291,11 +340,19 @@ app.get('/api/students', async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
-app.post('/api/students', async (req, res) => {
-    const { roll } = req.body;
-    const exists = await Student.findOne({ roll: roll?.trim().toUpperCase() });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "roll", value: roll });
-    handleRequest(req, res, () => new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save());
+app.post('/api/students', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { roll } = req.body;
+        if (!roll) throw new Error("Student roll number is required");
+        const exists = await Student.findOne({ roll: roll.trim().toUpperCase() });
+        if (exists) {
+            const err = new Error("Student with this roll number already exists");
+            err.code = 11000;
+            err.keyPattern = { roll: 1 };
+            throw err;
+        }
+        return await new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save();
+    });
 });
 app.put('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
 app.delete('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndDelete({ id: req.params.id })));
@@ -361,11 +418,19 @@ app.put('/api/attendance/update', async (req, res) => {
 
 // Subjects
 app.get('/api/subjects', async (req, res) => res.json(await Subject.find().lean()));
-app.post('/api/subjects', async (req, res) => {
-    const { code, dept, year } = req.body;
-    const exists = await Subject.findOne({ code: code?.trim().toUpperCase(), dept, year });
-    if (exists) return res.status(409).json({ success: false, error: "Duplicate Entity", field: "code", value: code });
-    res.json(await new Subject(req.body).save());
+app.post('/api/subjects', (req, res) => {
+    handleRequest(req, res, async () => {
+        const { code, dept, year } = req.body;
+        if (!code) throw new Error("Subject code is required");
+        const exists = await Subject.findOne({ code: code.trim().toUpperCase(), dept, year });
+        if (exists) {
+            const err = new Error("Subject code already exists for this dept/year");
+            err.code = 11000;
+            err.keyPattern = { code: 1 };
+            throw err;
+        }
+        return await new Subject(req.body).save();
+    });
 });
 app.delete('/api/subjects/:id', async (req, res) => res.json(await Subject.findOneAndDelete({ id: req.params.id })));
 
