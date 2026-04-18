@@ -325,24 +325,22 @@ app.post('/api/sections', (req, res) => {
 app.delete('/api/sections/:id', (req, res) => handleRequest(req, res, () => Section.findOneAndDelete({ id: req.params.id })));
 
 // Students
-app.get('/api/students', async (req, res) => {
-  try {
-    let students = await Student.find().lean();
-    students.sort((a, b) => {
-      const rA = a.roll.toUpperCase();
-      const rB = b.roll.toUpperCase();
-      const endA = rA.slice(-2), endB = rB.slice(-2);
-      const isNumA = /^\d{2}$/.test(endA), isNumB = /^\d{2}$/.test(endB);
-      if (isNumA && !isNumB) return -1;
-      if (!isNumA && isNumB) return 1;
-      const yearA = rA.substring(0, 2), yearB = rB.substring(0, 2);
-      if (yearA !== yearB) return yearA.localeCompare(yearB);
-      return rA.localeCompare(rB, undefined, { numeric: true });
+app.get('/api/students', (req, res) => {
+    handleRequest(req, res, async () => {
+        let students = await Student.find().lean();
+        students.sort((a, b) => {
+            const rA = a.roll.toUpperCase();
+            const rB = b.roll.toUpperCase();
+            const endA = rA.slice(-2), endB = rB.slice(-2);
+            const isNumA = /^\d{2}$/.test(endA), isNumB = /^\d{2}$/.test(endB);
+            if (isNumA && !isNumB) return -1;
+            if (!isNumA && isNumB) return 1;
+            const yearA = rA.substring(0, 2), yearB = rB.substring(0, 2);
+            if (yearA !== yearB) return yearA.localeCompare(yearB);
+            return rA.localeCompare(rB, undefined, { numeric: true });
+        });
+        return students;
     });
-    res.json(students);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
 });
 app.post('/api/students', (req, res) => {
     handleRequest(req, res, async () => {
@@ -421,7 +419,7 @@ app.put('/api/attendance/update', async (req, res) => {
 });
 
 // Subjects
-app.get('/api/subjects', async (req, res) => res.json(await Subject.find().lean()));
+app.get('/api/subjects', (req, res) => handleRequest(req, res, () => Subject.find().lean()));
 app.post('/api/subjects', (req, res) => {
     handleRequest(req, res, async () => {
         const { code, dept, year } = req.body;
@@ -436,29 +434,32 @@ app.post('/api/subjects', (req, res) => {
         return await new Subject(req.body).save();
     });
 });
-app.delete('/api/subjects/:id', async (req, res) => res.json(await Subject.findOneAndDelete({ id: req.params.id })));
+app.delete('/api/subjects/:id', (req, res) => handleRequest(req, res, () => Subject.findOneAndDelete({ id: req.params.id })));
 
 // Attendance
-app.get('/api/attendance', async (req, res) => {
-  const all = await Attendance.find().lean();
-  const formatted = {};
-  all.forEach(a => {
-    if(!formatted[a.date]) formatted[a.date] = {};
-    if(!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
-    // Store records by period
-    formatted[a.date][a.subjectId][a.period || "1"] = a.records;
-  });
-  res.json(formatted);
+app.get('/api/attendance', (req, res) => {
+    handleRequest(req, res, async () => {
+        const all = await Attendance.find().lean();
+        const formatted = {};
+        all.forEach(a => {
+            if(!formatted[a.date]) formatted[a.date] = {};
+            if(!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
+            formatted[a.date][a.subjectId][a.period || "1"] = a.records;
+        });
+        return formatted;
+    });
 });
 
-app.get('/api/attendance-locks', async (req, res) => {
-  const locks = await Attendance.find({ lockedAt: { $ne: null } }).lean();
-  const formatted = {};
-  locks.forEach(l => {
-    const key = `${l.date}|${l.subjectId}|${l.section}|${l.period || "1"}`;
-    formatted[key] = { lockedAt: l.lockedAt, lockedBy: l.lockedBy };
-  });
-  res.json(formatted);
+app.get('/api/attendance-locks', (req, res) => {
+    handleRequest(req, res, async () => {
+        const locks = await Attendance.find({ lockedAt: { $ne: null } }).lean();
+        const formatted = {};
+        locks.forEach(l => {
+            const key = `${l.date}|${l.subjectId}|${l.section}|${l.period || "1"}`;
+            formatted[key] = { lockedAt: l.lockedAt, lockedBy: l.lockedBy };
+        });
+        return formatted;
+    });
 });
 
 app.post('/api/attendance/save', async (req, res) => {
