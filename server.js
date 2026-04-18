@@ -215,10 +215,19 @@ async function cleanupDatabase() {
 
 // --- Authentication (Generic) ---
 app.post('/api/auth/login', async (req, res) => {
-    const { role, userId, password } = req.body;
+    let { role, userId, password } = req.body;
     try {
+        console.log(`🔑 Login Attempt: Role=${role}, UserID="${userId}", Pwd="${password}"`);
+        if (!userId || !password) {
+            return res.status(400).json({ success: false, message: 'Missing credentials' });
+        }
+        
+        // Task 3: Sanitize Login Inputs
+        userId = userId.trim();
+        password = password.trim();
+
         if (role === 'admin') {
-            if (userId === 'vemuadmin' && password === 'vemu@2008') {
+            if (userId.toLowerCase() === 'vemuadmin' && password === 'vemu@2008') {
                 return res.json({ success: true, user: { id: 'ADM001', name: 'Administrator', userId: 'vemuadmin', role: 'admin' } });
             }
         } else if (role === 'hods') {
@@ -228,15 +237,16 @@ app.post('/api/auth/login', async (req, res) => {
             const t = await Teacher.findOne({ userId: new RegExp(`^${userId}$`, 'i'), password });
             if (t) return res.json({ success: true, user: { ...t.toObject(), role: 'teacher' } });
         } else if (role === 'students') {
-            // Task 3: Sanitize Student Login (Trim & Upper)
-            const sanitizedId = userId.trim().toUpperCase();
+            const sanitizedId = userId.toUpperCase();
             const s = await Student.findOne({ roll: sanitizedId });
+            // For students, roll number is both ID and Password
             if (s && password.toUpperCase() === sanitizedId) {
                 return res.json({ success: true, user: { ...s.toObject(), role: 'student' } });
             }
         }
         res.status(401).json({ success: false, message: 'Invalid credentials' });
     } catch (err) {
+        console.error("Auth Error:", err);
         res.status(500).json({ success: false, message: 'Auth error' });
     }
 });
