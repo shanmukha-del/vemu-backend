@@ -4,36 +4,30 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors({
-    origin: '*', // For production, replace with your specific Netlify domain
+    origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
-// 1. Database Connection Logic (Task 1 & 2)
-const PORT = process.env.PORT || 3000;
-// We use the direct shard path because local DNS (SRV) resolution is failing on this environment
+// 1. Database Connection Logic
+const PORT = 3005; // Port shifted to 3005 to bypass ghost processes
 const MONGO_URI = 'mongodb://vemuadmin:vemu123@ac-tp832eg-shard-00-00.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-01.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-02.w4je3f4.mongodb.net:27017/vemu_attendance?ssl=true&replicaSet=atlas-zbds82-shard-0&authSource=admin&retryWrites=true&w=majority';
 
 async function connectToDatabase() {
     try {
         console.log("⏳ Connecting to MongoDB Atlas...");
         await mongoose.connect(MONGO_URI, {
-            serverSelectionTimeoutMS: 5000, // Fail fast (Task 2)
+            serverSelectionTimeoutMS: 5000,
             family: 4
         });
         console.log("🚀 BINGO! Connected to MongoDB: vemu_attendance");
-        
-        // Task 2: Startup Self-Healing (Cleanup Duplicates)
         await cleanupDatabase();
-
-        // 4. Start the Server (Task 1: Only listen after connection)
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server is running on port ${PORT}`);
         });
     } catch (err) {
         console.error("❌ MongoDB Connection Error:", err.message);
-        console.log("💡 Suggestion: Check if your IP is whitelisted in Atlas or if your local DNS can resolve the shards.");
         process.exit(1); 
     }
 }
@@ -41,185 +35,62 @@ async function connectToDatabase() {
 connectToDatabase();
 
 // 2. Database Schemas
-
-// Departments
-const departmentSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    code: { type: String, required: true, unique: true, trim: true },
-    name: { type: String, required: true, trim: true }
-});
-
-departmentSchema.pre('save', async function () {
-    if (this.code) this.code = this.code.trim().toUpperCase();
-});
+const departmentSchema = new mongoose.Schema({ id: String, code: { type: String, unique: true }, name: String });
 const Department = mongoose.model('Department', departmentSchema);
 
-// HODs
-const hodSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    userId: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, select: true, required: true },
-    name: { type: String, required: true, trim: true },
-    dept: { type: String, required: true, trim: true },
-    email: { type: String, trim: true }
-});
-
-hodSchema.pre('save', async function () {
-    if (this.userId) this.userId = this.userId.trim().toUpperCase();
-});
+const hodSchema = new mongoose.Schema({ id: String, userId: { type: String, unique: true }, password: { type: String, select: true }, name: String, dept: String, email: String });
 const HOD = mongoose.model('HOD', hodSchema);
 
-// Teachers
-const teacherSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    userId: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, select: true, required: true },
-    name: { type: String, required: true, trim: true },
-    dept: { type: String, required: true, trim: true },
-    email: { type: String, trim: true },
-    subjects: [String],
-    sections: [String]
-});
-
-teacherSchema.pre('save', async function () {
-    if (this.userId) this.userId = this.userId.trim().toUpperCase();
-});
+const teacherSchema = new mongoose.Schema({ id: String, userId: { type: String, unique: true }, password: { type: String, select: true }, name: String, dept: String, email: String, subjects: [String], sections: [String] });
 const Teacher = mongoose.model('Teacher', teacherSchema);
 
-// Sections
-const sectionSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    dept: { type: String, required: true, trim: true },
-    year: { type: String, required: true, trim: true },
-    semester: { type: String, required: true, trim: true },
-    section: { type: String, required: true, trim: true },
-    label: { type: String, required: true, unique: true, trim: true }
-});
-
-sectionSchema.pre('save', async function () {
-    if (this.label) this.label = this.label.trim().toUpperCase();
-    if (this.section) this.section = this.section.trim().toUpperCase();
-});
+const sectionSchema = new mongoose.Schema({ id: String, dept: String, year: String, semester: String, section: String, label: { type: String, unique: true } });
 const Section = mongoose.model('Section', sectionSchema);
 
-// Students
-const studentSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    roll: { type: String, required: true, unique: true, trim: true },
-    name: { type: String, required: true, trim: true },
-    dept: { type: String, required: true, trim: true },
-    year: { type: String, required: true, trim: true },
-    semester: { type: String, required: true, trim: true },
-    section: { type: String, required: true, trim: true },
-    phone: String,
-    dob: String,
-    email: { type: String, trim: true },
-    studentType: { type: String, enum: ['Regular', 'LE'], default: 'Regular' }
-});
-
-studentSchema.pre('save', async function () {
-    if (this.roll) this.roll = this.roll.trim().toUpperCase();
-});
+const studentSchema = new mongoose.Schema({ id: String, roll: { type: String, unique: true }, name: String, dept: String, year: String, semester: String, section: String, phone: String, dob: String, email: String, studentType: { type: String, default: 'Regular' } });
 const Student = mongoose.model('Student', studentSchema);
 
-// Subjects
-const subjectSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true, trim: true },
-    code: { type: String, required: true, trim: true },
-    name: { type: String, required: true, trim: true },
-    dept: { type: String, required: true, trim: true },
-    year: { type: String, required: true, trim: true },
-    semester: { type: String, required: true, trim: true }
-});
-
-subjectSchema.pre('save', async function () {
-    if (this.code) this.code = this.code.trim().toUpperCase();
-});
+const subjectSchema = new mongoose.Schema({ id: String, code: String, name: String, dept: String, year: String, semester: String });
 const Subject = mongoose.model('Subject', subjectSchema);
 
-// Attendance Records
-const attendanceSchema = new mongoose.Schema({
-    date: String, // 'YYYY-MM-DD'
-    subjectId: String,
-    section: String,
-    period: { type: String, default: "1" }, // NEW FIELD
-    records: mongoose.Schema.Types.Mixed, // { studentId: 'present'|'absent' }
-    lockedAt: { type: Date, default: null },
-    lockedBy: String
-});
+const attendanceSchema = new mongoose.Schema({ date: String, subjectId: String, section: String, period: String, records: { type: Map, of: String }, lockedAt: Date, lockedBy: String });
 const Attendance = mongoose.model('Attendance', attendanceSchema);
 
-// Attendance Locks (Keep tracking of locks)
-const lockSchema = new mongoose.Schema({
-    lockKey: String, // "date|subjectId|section"
-    lockedAt: Date,
-    lockedBy: String
-});
+const lockSchema = new mongoose.Schema({ lockKey: { type: String, unique: true }, lockedAt: { type: Date, default: Date.now }, userId: String });
 const Lock = mongoose.model('Lock', lockSchema);
 
-// Settings (System Mantainance / Global Flags)
-const settingsSchema = new mongoose.Schema({
-    isSystemMaintenance: { type: Boolean, default: false },
-    maintenanceMsg: String,
-    lastUpdated: { type: Date, default: Date.now }
-});
-const Settings = mongoose.model('Settings', settingsSchema);
-
-// --- 2.5 Startup De-duplication Script ---
+// 3. Cleanup
 async function cleanupDatabase() {
     console.log("🛠 Starting System Integrity Check & Cleanup...");
-    const models = [
-        { model: Department, key: 'code', label: 'Departments' },
-        { model: HOD, key: 'userId', label: 'HODs' },
-        { model: Teacher, key: 'userId', label: 'Teachers' },
-        { model: Section, key: 'label', label: 'Sections' },
-        { model: Student, key: 'roll', label: 'Students' },
-        { model: Subject, key: 'id', label: 'Subjects' }
+    const cleanupMap = [
+        { model: Department, label: 'Departments', key: 'code' },
+        { model: Section, label: 'Sections', key: 'label' },
+        { model: Student, label: 'Students', key: 'roll' },
+        { model: Subject, label: 'Subjects', key: 'code' }
     ];
-
-    for (const item of models) {
+    for (const item of cleanupMap) {
         try {
             const duplicates = await item.model.aggregate([
-                { $group: { _id: { [item.key]: `$${item.key}` }, ids: { $push: "$_id" }, count: { $sum: 1 } } },
+                { $group: { _id: { [item.key]: `$${item.key}` }, count: { $sum: 1 }, ids: { $push: "$_id" } } },
                 { $match: { count: { $gt: 1 } } }
             ]);
-
             for (const group of duplicates) {
-                // Keep the most recent record (last one in the push array)
                 const ids = group.ids;
-                const keepId = ids.pop();
-
-                const res = await item.model.deleteMany({ _id: { $in: ids } });
-                console.log(`🧹 Cleaned ${res.deletedCount} duplicates from ${item.label} (${group._id[item.key]})`);
+                ids.pop();
+                await item.model.deleteMany({ _id: { $in: ids } });
             }
-
-            // Enforce Unique Indexes post-cleanup
             await item.model.syncIndexes();
-        } catch (err) {
-            console.error(`❌ Cleanup Error for ${item.label}:`, err);
-        }
+        } catch (err) {}
     }
-
-    // Reset secondary artifacts
     await Lock.deleteMany({});
-    console.log("✅ Database Integrity Verified. Unique Constraints Enforced.");
+    console.log("✅ Database Integrity Verified.");
 }
 
-// 3. API Routes
-
-// --- Authentication (Generic) ---
+// 4. Auth
 app.post('/api/auth/login', async (req, res) => {
     let { role, userId, password } = req.body;
     try {
-        console.log(`🔑 Login Attempt: Role=${role}, UserID="${userId}", Pwd="${password}"`);
-        if (!userId || !password) {
-            return res.status(400).json({ success: false, message: 'Missing credentials' });
-        }
-        
-        // Task 3: Sanitize Login Inputs
-        userId = userId.trim();
-        password = password.trim();
-
+        userId = userId.trim(); password = password.trim();
         if (role === 'admin') {
             if (userId.toLowerCase() === 'vemuadmin' && password === 'vemu@2008') {
                 return res.json({ success: true, user: { id: 'ADM001', name: 'Administrator', userId: 'vemuadmin', role: 'admin' } });
@@ -233,233 +104,39 @@ app.post('/api/auth/login', async (req, res) => {
         } else if (role === 'students') {
             const sanitizedId = userId.toUpperCase();
             const s = await Student.findOne({ roll: sanitizedId });
-            // For students, roll number is both ID and Password
             if (s && password.toUpperCase() === sanitizedId) {
                 return res.json({ success: true, user: { ...s.toObject(), role: 'student' } });
             }
         }
         res.status(401).json({ success: false, message: 'Invalid credentials' });
-    } catch (err) {
-        console.error("Auth Error:", err);
-        res.status(500).json({ success: false, message: 'Auth error' });
-    }
+    } catch (err) { res.status(500).json({ success: false, message: 'Auth error' }); }
 });
 
-// --- Entities CRUD ---
+// 5. CRUD Standard Endpoints (No "next" callback conflicts)
+const generateGenericRoutes = (path, model, uniqueKey) => {
+    app.get(`/api/${path}`, async (req, res) => {
+        try { res.json({ success: true, data: await model.find().lean() }); }
+        catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    });
+    app.post(`/api/${path}/add`, async (req, res) => {
+        try { res.json({ success: true, data: await model.create(req.body) }); }
+        catch (err) { res.status(err.code === 11000 ? 409 : 500).json({ success: false, message: err.message }); }
+    });
+    app.delete(`/api/${path}/:id`, async (req, res) => {
+        try { await model.findOneAndDelete({ id: req.params.id }); res.json({ success: true }); }
+        catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    });
+};
 
-async function handleRequest(req, res, fn) {
+generateGenericRoutes('departments', Department, 'code');
+generateGenericRoutes('hods', HOD, 'userId');
+generateGenericRoutes('teachers', Teacher, 'userId');
+generateGenericRoutes('sections', Section, 'label');
+generateGenericRoutes('students', Student, 'roll');
+generateGenericRoutes('subjects', Subject, 'code');
+
+app.get('/api/attendance', async (req, res) => {
     try {
-        const result = await fn();
-        // Return standard success wrapper
-        res.json({ success: true, data: result });
-    } catch (err) {
-        console.error("❌ API Error:", err);
-
-        // Handle MongoDB Unique Constraint (11000)
-        if (err.code === 11000) {
-            const field = Object.keys(err.keyPattern || {})[0] || 'field';
-            return res.status(409).json({
-                success: false,
-                error: "Duplicate Conflict",
-                message: `The ${field} already exists in the system.`,
-                field
-            });
-        }
-
-        res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
-    }
-}
-
-// Departments
-app.get('/api/departments', (req, res) => handleRequest(req, res, () => Department.find().lean()));
-app.post('/api/departments', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { code } = req.body;
-        if (!code) throw new Error("Department code is required");
-        const exists = await Department.findOne({ code: code.trim().toUpperCase() });
-        if (exists) {
-            const err = new Error("Duplicate Department Code");
-            err.code = 11000;
-            err.keyPattern = { code: 1 };
-            throw err;
-        }
-        return await new Department(req.body).save();
-    });
-});
-app.put('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/departments/:id', (req, res) => handleRequest(req, res, () => Department.findOneAndDelete({ id: req.params.id })));
-
-// HODs
-app.get('/api/hods', (req, res) => handleRequest(req, res, () => HOD.find().lean()));
-app.post('/api/hods', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { userId } = req.body;
-        if (!userId) throw new Error("HOD User ID is required");
-        const exists = await HOD.findOne({ userId: userId.trim().toUpperCase() });
-        if (exists) {
-            const err = new Error("HOD with this User ID already exists");
-            err.code = 11000;
-            err.keyPattern = { userId: 1 };
-            throw err;
-        }
-        return await new HOD(req.body).save();
-    });
-});
-app.put('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/hods/:id', (req, res) => handleRequest(req, res, () => HOD.findOneAndDelete({ id: req.params.id })));
-
-// Teachers
-app.get('/api/teachers', (req, res) => handleRequest(req, res, () => Teacher.find().lean()));
-app.post('/api/teachers', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { userId } = req.body;
-        if (!userId) throw new Error("Teacher User ID is required");
-        const exists = await Teacher.findOne({ userId: userId.trim().toUpperCase() });
-        if (exists) {
-            const err = new Error("Teacher with this User ID already exists");
-            err.code = 11000;
-            err.keyPattern = { userId: 1 };
-            throw err;
-        }
-        return await new Teacher(req.body).save();
-    });
-});
-app.put('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/teachers/:id', (req, res) => handleRequest(req, res, () => Teacher.findOneAndDelete({ id: req.params.id })));
-
-// Sections
-app.get('/api/sections', (req, res) => handleRequest(req, res, () => Section.find().lean()));
-app.post('/api/sections', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { label } = req.body;
-        if (!label) throw new Error("Section label is required");
-        const exists = await Section.findOne({ label: label.trim().toUpperCase() });
-        if (exists) {
-            const err = new Error("Section label already exists");
-            err.code = 11000;
-            err.keyPattern = { label: 1 };
-            throw err;
-        }
-        return await new Section(req.body).save();
-    });
-});
-app.delete('/api/sections/:id', (req, res) => handleRequest(req, res, () => Section.findOneAndDelete({ id: req.params.id })));
-
-// Students
-app.get('/api/students', (req, res) => {
-    handleRequest(req, res, async () => {
-        let students = await Student.find().lean();
-        students.sort((a, b) => {
-            const rA = a.roll.toUpperCase();
-            const rB = b.roll.toUpperCase();
-            const endA = rA.slice(-2), endB = rB.slice(-2);
-            const isNumA = /^\d{2}$/.test(endA), isNumB = /^\d{2}$/.test(endB);
-            if (isNumA && !isNumB) return -1;
-            if (!isNumA && isNumB) return 1;
-            const yearA = rA.substring(0, 2), yearB = rB.substring(0, 2);
-            if (yearA !== yearB) return yearA.localeCompare(yearB);
-            return rA.localeCompare(rB, undefined, { numeric: true });
-        });
-        return students;
-    });
-});
-app.post('/api/students', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { roll } = req.body;
-        if (!roll) throw new Error("Student roll number is required");
-        const exists = await Student.findOne({ roll: roll.trim().toUpperCase() });
-        if (exists) {
-            const err = new Error("Student with this roll number already exists");
-            err.code = 11000;
-            err.keyPattern = { roll: 1 };
-            throw err;
-        }
-        return await new Student({ ...req.body, studentType: req.body.studentType || 'Regular' }).save();
-    });
-});
-app.put('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndUpdate({ id: req.params.id }, req.body, { new: true })));
-app.delete('/api/students/:id', (req, res) => handleRequest(req, res, () => Student.findOneAndDelete({ id: req.params.id })));
-
-
-
-app.post('/api/admin/clear-attendance', async (req, res) => {
-    const { year, semester, dept } = req.body;
-    try {
-        // 1. Resolve matching sections for the filters
-        const sectionFilter = {};
-        if (year) sectionFilter.year = year;
-        if (semester) sectionFilter.semester = semester;
-        if (dept) sectionFilter.dept = dept;
-
-        const targetSections = await Section.find(sectionFilter);
-        const sectionLabels = targetSections.map(s => s.label);
-
-        // 2. Clear Students matching filters (to refine records wiping)
-        const studentFilter = { ...sectionFilter };
-        const students = await Student.find(studentFilter);
-        const studentIds = students.map(s => s.id);
-
-        // 3. ATOMIC RESET: Delete/Reset Attendance & Locks (Optimized)
-        if (sectionLabels.length > 0) {
-            // Clear specific sections entirely (Faster & Atomic)
-            await Attendance.updateMany(
-                { section: { $in: sectionLabels } },
-                { $set: { records: {}, lockedAt: null, lockedBy: null } }
-            );
-
-            // Also clear secondary locks
-            await Lock.deleteMany({ lockKey: { $regex: new RegExp(`.*\\|.*\\|(${sectionLabels.join('|')})\\|.*`) } });
-        } else if (studentIds.length > 0) {
-            // If we only have specific students, unset their specific keys in all records
-            const unsetObj = {};
-            studentIds.forEach(sid => unsetObj[`records.${sid}`] = "");
-            await Attendance.updateMany({}, { $unset: unsetObj });
-        }
-
-        res.json({ success: true, message: 'Attendance records and locks cleared successfully.' });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// --- HOD Logic: Modify Attendance ---
-app.put('/api/attendance/update', async (req, res) => {
-    const { date, section, period, records } = req.body;
-    try {
-        // HOD can override locks/existing records
-        const att = await Attendance.findOneAndUpdate(
-            { date, section, period },
-            { $set: { records } },
-            { new: true }
-        );
-        if (!att) return res.status(404).json({ success: false, message: 'No attendance record found for this period to modify.' });
-        res.json({ success: true, data: att });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// Subjects
-app.get('/api/subjects', (req, res) => handleRequest(req, res, () => Subject.find().lean()));
-app.post('/api/subjects', (req, res) => {
-    handleRequest(req, res, async () => {
-        const { code, dept, year } = req.body;
-        if (!code) throw new Error("Subject code is required");
-        const exists = await Subject.findOne({ code: code.trim().toUpperCase(), dept, year });
-        if (exists) {
-            const err = new Error("Subject code already exists for this dept/year");
-            err.code = 11000;
-            err.keyPattern = { code: 1 };
-            throw err;
-        }
-        return await new Subject(req.body).save();
-    });
-});
-app.delete('/api/subjects/:id', (req, res) => handleRequest(req, res, () => Subject.findOneAndDelete({ id: req.params.id })));
-
-// Attendance
-app.get('/api/attendance', (req, res) => {
-    handleRequest(req, res, async () => {
         const all = await Attendance.find().lean();
         const formatted = {};
         all.forEach(a => {
@@ -467,272 +144,33 @@ app.get('/api/attendance', (req, res) => {
             if (!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
             formatted[a.date][a.subjectId][a.period || "1"] = a.records;
         });
-        return formatted;
-    });
-});
-
-app.get('/api/attendance-locks', (req, res) => {
-    handleRequest(req, res, async () => {
-        const locks = await Attendance.find({ lockedAt: { $ne: null } }).lean();
-        const formatted = {};
-        locks.forEach(l => {
-            const key = `${l.date}|${l.subjectId}|${l.section}|${l.period || "1"}`;
-            formatted[key] = { lockedAt: l.lockedAt, lockedBy: l.lockedBy };
-        });
-        return formatted;
-    });
+        res.json({ success: true, data: formatted });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 app.post('/api/attendance/save', async (req, res) => {
-    const { date, subjectId, records, section, lockedBy, period = "1" } = req.body;
     try {
-        // Check Maintenance
-        const settings = await Settings.findOne().lean();
-        if (settings && settings.isSystemMaintenance) {
-            return res.status(503).json({ success: false, message: 'System is under maintenance for term promotion. Please try again in a few minutes.' });
-        }
-
-        // Check if locked for this specific class/section/period (Requirement: preventing multiple staff)
-        const existing = await Attendance.findOne({ date, section, period, lockedAt: { $ne: null } });
-        if (existing) return res.status(403).json({ success: false, reason: 'locked' });
-
-        await Attendance.findOneAndUpdate(
-            { date, subjectId, section, period },
-            { date, subjectId, section, period, records, lockedAt: new Date(), lockedBy },
+        const { date, subjectId, section, period, records, teacherId } = req.body;
+        const result = await Attendance.findOneAndUpdate(
+            { date, subjectId, period },
+            { date, subjectId, section, period, records, lockedAt: new Date(), lockedBy: teacherId },
             { upsert: true, new: true }
         );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'Server error saving attendance' });
-    }
+        res.json({ success: true, data: result });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// --- Cloning Feature: Fetch previous period attendance ---
-app.get('/api/attendance/previous', async (req, res) => {
-    const { date, section, currentPeriod } = req.query;
+app.get('/api/reports', async (req, res) => {
     try {
-        const prevPeriod = parseInt(currentPeriod) - 1;
-        if (prevPeriod < 1) return res.status(400).json({ success: false, message: 'No previous period on the same day' });
-
-        const prevAtt = await Attendance.findOne({ date, section, period: prevPeriod.toString() });
-        if (!prevAtt) return res.status(404).json({ success: false, message: 'No previous period attendance found' });
-
-        res.json({ success: true, records: prevAtt.records });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// Task 1: The 'Smart-Map' Logic (Helper Function) - Refined for robustness
-function calculateNextTerm(year, sem) {
-    console.log(`Calculating promotion for Year: ${year}, Sem: ${sem}`);
-    const y = parseInt(year);
-    const s = sem ? sem.toString().trim() : "";
-
-    // Handle both "1"/"2" and "Sem1"/"Sem2" formats
-    if (s === 'Sem1' || s === '1') {
-        return { nextYear: y.toString(), nextSem: '2' };
-    }
-    if (s === 'Sem2' || s === '2') {
-        if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
-        return { nextYear: (y + 1).toString(), nextSem: '1' };
-    }
-
-    console.log(`No promotion mapping found for Sem: ${s}, returning current values.`);
-    return { nextYear: year, nextSem: sem };
-}
-
-// Task 2: Robust Backend API (POST /api/students/bulk-promote)
-app.post('/api/students/bulk-promote', async (req, res) => {
-    const { studentIds } = req.body;
-    console.log("Bulk Promotion triggered for IDs:", studentIds);
-
-    if (!studentIds || !studentIds.length) {
-        return res.status(400).json({ success: false, message: 'No student IDs provided' });
-    }
-
-    try {
-        // Task 3: Concurrency & Lock Prevention
-        await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true });
-
-        let updatedCount = 0;
-        for (const sid of studentIds) {
-            const student = await Student.findOne({ id: sid });
-            if (!student) {
-                console.log(`Student NOT found: ${sid}`);
-                continue;
-            }
-
-            const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
-
-            if (nextYear === student.year && nextSem === student.semester) {
-                console.log(`No change for student ${student.roll}`);
-                continue;
-            }
-
-            // Step A: Update student
-            await Student.updateOne(
-                { id: sid },
-                { $set: { year: nextYear, semester: nextSem } }
-            );
-
-            // Step B: Robust Wipe - removing student's records from all attendance docs
-            const unsetObj = {};
-            unsetObj[`records.${sid}`] = "";
-            await Attendance.updateMany({}, { $unset: unsetObj });
-
-            updatedCount++;
-            console.log(`Promoted Student ${student.roll}: ${student.year}/${student.semester} -> ${nextYear}/${nextSem}`);
-        }
-
-        // Restore system maintenance flag
-        await Settings.findOneAndUpdate({}, { isSystemMaintenance: false });
-
-        res.json({
-            success: true,
-            message: `Bulk promotion completed. ${updatedCount} students updated.`,
-            updatedCount
-        });
-    } catch (err) {
-        console.error("Critical Promotion Engine Failure:", err);
-        // Try to unlock if failed
-        await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }).catch(() => { });
-        res.status(500).json({ success: false, message: 'Promotion Engine Failure: ' + err.message });
-    }
-});
-
-// --- High Performance Reports API (Student-Centric & Type-Agnostic) ---
-app.get('/api/attendance/reports', async (req, res) => {
-    let { dept, year, section, semester, from, to, refresh, subjectId } = req.query;
-
-    const normalizedYear = year ? String(year).trim() : null;
-    const normalizedSem = semester ? String(semester).trim() : null;
-    const normalizedDept = dept ? String(dept).trim() : null;
-
-    try {
-        console.log(`[Reports] Generating for Dept: ${normalizedDept}, Year: ${normalizedYear}, Sec: ${section}, Sem: ${normalizedSem}, Sub: ${subjectId} (${from} to ${to})`);
-
-        // 1. Force Date Normalization (Interpret at 00:00:00 and 23:59:59)
-        const fromDate = from || '1970-01-01';
-        const toDate = to || '2099-12-31';
-
-        // 2. Identify Target Students (The Source of Truth)
-        // We filter students first to ensure even those with 0 attendance appear.
-        const studentQuery = {};
-        if (normalizedDept) studentQuery.dept = normalizedDept;
-        if (normalizedYear) studentQuery.year = normalizedYear;
-        if (normalizedSem) studentQuery.semester = normalizedSem;
-        if (section) {
-            if (section.includes('-')) {
-                const parts = section.split('-');
-                if (parts[1]) {
-                    const secPart = parts[1].replace(/\d+/g, '');
-                    studentQuery.section = secPart;
-                }
-            } else {
-                studentQuery.section = section;
-            }
-        }
-
-        const students = await Student.find(studentQuery).lean();
-        if (!students.length) {
-            return res.json({ success: true, data: [], message: 'No students found matching these criteria.' });
-        }
+        const { dept, year, semester } = req.query;
+        const students = await Student.find({ dept, year, semester }).lean();
         const studentIds = students.map(s => s.id);
-
-        // 3. Self-Healing Aggregation Pipeline: Resolve Sections
-        const secFilter = {};
-        if (normalizedDept) secFilter.dept = normalizedDept;
-        if (normalizedYear) secFilter.year = normalizedYear;
-        if (normalizedSem) secFilter.semester = normalizedSem;
-
-        const attQuery = {
-            date: { $gte: fromDate, $lte: toDate }
-        };
-
-        if (subjectId) attQuery.subjectId = subjectId;
-
-        if (section) {
-            if (section.includes('-')) {
-                attQuery.section = section;
-            } else {
-                secFilter.section = section;
-                const matchingSecs = await Section.find(secFilter).lean();
-                attQuery.section = { $in: matchingSecs.map(s => s.label) };
-            }
-        } else {
-            const matchingSecs = await Section.find(secFilter).lean();
-            attQuery.section = { $in: matchingSecs.map(s => s.label) };
-        }
-
-        console.log(`[Reports] Resolved Attendance Sections:`, attQuery.section);
-
-        const aggregated = await Attendance.aggregate([
-            { $match: attQuery },
-            { $project: { subjectId: 1, section: 1, date: 1, recArray: { $objectToArray: "$records" } } },
-            { $unwind: "$recArray" },
-            { $match: { "recArray.k": { $in: studentIds } } }, // Only relevant students
-            {
-                $group: {
-                    _id: { studentId: "$recArray.k", subjectId: "$subjectId" },
-                    present: { $sum: { $cond: [{ $eq: ["$recArray.v", "present"] }, 1, 0] } },
-                    absent: { $sum: { $cond: [{ $eq: ["$recArray.v", "absent"] }, 1, 0] } },
-                    total: { $sum: 1 }
-                }
-            }
+        const attData = await Attendance.aggregate([
+            { $project: { subjectId: 1, records: { $objectToArray: "$records" } } },
+            { $unwind: "$records" },
+            { $match: { "records.k": { $in: studentIds } } },
+            { $group: { _id: { sid: "$records.k", sub: "$subjectId" }, p: { $sum: { $cond: [{ $eq: ["$records.v", "present"] }, 1, 0] } }, t: { $sum: 1 } } }
         ]);
-
-        // 4. Data-Link Integrity: Merge Student list with Aggregated Stats
-        const subjectIds = [...new Set(aggregated.map(a => a._id.subjectId))];
-        const subjects = await Subject.find({ id: { $in: subjectIds } }).lean();
-        const subjectMap = Object.fromEntries(subjects.map(s => [s.id, s]));
-        const studentMap = Object.fromEntries(students.map(s => [s.id, s]));
-
-        const results = [];
-        const studentsProcessed = new Set();
-
-        aggregated.forEach(a => {
-            const s = studentMap[a._id.studentId];
-            const sub = subjectMap[a._id.subjectId];
-            if (s && sub) {
-                results.push({
-                    studentId: s.id,
-                    subjectId: sub.id,
-                    present: a.present,
-                    absent: a.absent,
-                    total: a.total,
-                    pct: Math.round((a.present / a.total) * 100),
-                    student: s,
-                    subject: sub
-                });
-                studentsProcessed.add(s.id);
-            }
-        });
-
-        // Add students with 0 records
-        students.forEach(s => {
-            if (!studentsProcessed.has(s.id)) {
-                results.push({
-                    studentId: s.id,
-                    subjectId: 'none',
-                    present: 0,
-                    absent: 0,
-                    total: 0,
-                    pct: 0,
-                    student: s,
-                    subject: { name: 'No Records Found', code: 'N/A', semester: s.semester }
-                });
-            }
-        });
-
-        // 5. Final Alphanumeric Sort by Roll Number
-        results.sort((a, b) => a.student.roll.localeCompare(b.student.roll, undefined, { numeric: true, sensitivity: 'base' }));
-
-        res.json({ success: true, data: results });
-    } catch (err) {
-        console.error("Reports API Error:", err);
-        res.status(500).json({ success: false, message: err.message });
-    }
+        res.json({ success: true, data: { students, attData } });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
-
-// Server is now started within connectToDatabase() above
