@@ -10,20 +10,35 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 1. DIRECT SHARD CONNECTION (Bypasses the failing SRV lookup)
+// 1. Database Connection Logic (Task 1 & 2)
+const PORT = process.env.PORT || 3000;
+// We use the direct shard path because local DNS (SRV) resolution is failing on this environment
 const MONGO_URI = 'mongodb://vemuadmin:vemu123@ac-tp832eg-shard-00-00.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-01.w4je3f4.mongodb.net:27017,ac-tp832eg-shard-00-02.w4je3f4.mongodb.net:27017/vemu_attendance?ssl=true&replicaSet=atlas-zbds82-shard-0&authSource=admin&retryWrites=true&w=majority';
 
-mongoose.connect(MONGO_URI, {
-    serverSelectionTimeoutMS: 20000, 
-    family: 4 
-})
-.then(async () => {
-    console.log("🚀 BINGO! Successfully connected to MongoDB Cloud (Atlas)");
-    // Task 2: Startup Self-Healing (Cleanup Duplicates)
-    await cleanupDatabase();
-}).catch(err => {
-    console.log("❌ MongoDB Connection Error:", err);
-});
+async function connectToDatabase() {
+    try {
+        console.log("⏳ Connecting to MongoDB Atlas...");
+        await mongoose.connect(MONGO_URI, {
+            serverSelectionTimeoutMS: 5000, // Fail fast (Task 2)
+            family: 4
+        });
+        console.log("🚀 BINGO! Connected to MongoDB: vemu_attendance");
+        
+        // Task 2: Startup Self-Healing (Cleanup Duplicates)
+        await cleanupDatabase();
+
+        // 4. Start the Server (Task 1: Only listen after connection)
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+        });
+    } catch (err) {
+        console.error("❌ MongoDB Connection Error:", err.message);
+        console.log("💡 Suggestion: Check if your IP is whitelisted in Atlas or if your local DNS can resolve the shards.");
+        process.exit(1); 
+    }
+}
+
+connectToDatabase();
 
 // 2. Database Schemas
 
@@ -34,7 +49,7 @@ const departmentSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true }
 });
 
-departmentSchema.pre('save', function(next) {
+departmentSchema.pre('save', function (next) {
     if (this.code) this.code = this.code.trim().toUpperCase();
     next();
 });
@@ -50,7 +65,7 @@ const hodSchema = new mongoose.Schema({
     email: { type: String, trim: true }
 });
 
-hodSchema.pre('save', function(next) {
+hodSchema.pre('save', function (next) {
     if (this.userId) this.userId = this.userId.trim().toUpperCase();
     next();
 });
@@ -68,7 +83,7 @@ const teacherSchema = new mongoose.Schema({
     sections: [String]
 });
 
-teacherSchema.pre('save', function(next) {
+teacherSchema.pre('save', function (next) {
     if (this.userId) this.userId = this.userId.trim().toUpperCase();
     next();
 });
@@ -84,7 +99,7 @@ const sectionSchema = new mongoose.Schema({
     label: { type: String, required: true, unique: true, trim: true }
 });
 
-sectionSchema.pre('save', function(next) {
+sectionSchema.pre('save', function (next) {
     if (this.label) this.label = this.label.trim().toUpperCase();
     if (this.section) this.section = this.section.trim().toUpperCase();
     next();
@@ -106,7 +121,7 @@ const studentSchema = new mongoose.Schema({
     studentType: { type: String, enum: ['Regular', 'LE'], default: 'Regular' }
 });
 
-studentSchema.pre('save', function(next) {
+studentSchema.pre('save', function (next) {
     if (this.roll) this.roll = this.roll.trim().toUpperCase();
     next();
 });
@@ -122,7 +137,7 @@ const subjectSchema = new mongoose.Schema({
     semester: { type: String, required: true, trim: true }
 });
 
-subjectSchema.pre('save', function(next) {
+subjectSchema.pre('save', function (next) {
     if (this.code) this.code = this.code.trim().toUpperCase();
     next();
 });
@@ -178,19 +193,19 @@ async function cleanupDatabase() {
             for (const group of duplicates) {
                 // Keep the most recent record (last one in the push array)
                 const ids = group.ids;
-                const keepId = ids.pop(); 
-                
+                const keepId = ids.pop();
+
                 const res = await item.model.deleteMany({ _id: { $in: ids } });
                 console.log(`🧹 Cleaned ${res.deletedCount} duplicates from ${item.label} (${group._id[item.key]})`);
             }
-            
+
             // Enforce Unique Indexes post-cleanup
             await item.model.syncIndexes();
         } catch (err) {
             console.error(`❌ Cleanup Error for ${item.label}:`, err);
         }
     }
-    
+
     // Reset secondary artifacts
     await Lock.deleteMany({});
     console.log("✅ Database Integrity Verified. Unique Constraints Enforced.");
@@ -213,8 +228,10 @@ app.post('/api/auth/login', async (req, res) => {
             const t = await Teacher.findOne({ userId: new RegExp(`^${userId}$`, 'i'), password });
             if (t) return res.json({ success: true, user: { ...t.toObject(), role: 'teacher' } });
         } else if (role === 'students') {
-            const s = await Student.findOne({ roll: new RegExp(`^${userId}$`, 'i') });
-            if (s && password.toUpperCase() === s.roll.toUpperCase()) {
+            // Task 3: Sanitize Student Login (Trim & Upper)
+            const sanitizedId = userId.trim().toUpperCase();
+            const s = await Student.findOne({ roll: sanitizedId });
+            if (s && password.toUpperCase() === sanitizedId) {
                 return res.json({ success: true, user: { ...s.toObject(), role: 'student' } });
             }
         }
@@ -227,26 +244,26 @@ app.post('/api/auth/login', async (req, res) => {
 // --- Entities CRUD ---
 
 async function handleRequest(req, res, fn) {
-  try {
-    const result = await fn();
-    // Return standard success wrapper
-    res.json({ success: true, data: result });
-  } catch (err) {
-    console.error("❌ API Error:", err);
-    
-    // Handle MongoDB Unique Constraint (11000)
-    if (err.code === 11000) {
-        const field = Object.keys(err.keyPattern || {})[0] || 'field';
-        return res.status(409).json({ 
-            success: false, 
-            error: "Duplicate Conflict",
-            message: `The ${field} already exists in the system.`,
-            field 
-        });
-    }
+    try {
+        const result = await fn();
+        // Return standard success wrapper
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error("❌ API Error:", err);
 
-    res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
-  }
+        // Handle MongoDB Unique Constraint (11000)
+        if (err.code === 11000) {
+            const field = Object.keys(err.keyPattern || {})[0] || 'field';
+            return res.status(409).json({
+                success: false,
+                error: "Duplicate Conflict",
+                message: `The ${field} already exists in the system.`,
+                field
+            });
+        }
+
+        res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+    }
 }
 
 // Departments
@@ -362,60 +379,60 @@ app.delete('/api/students/:id', (req, res) => handleRequest(req, res, () => Stud
 
 
 app.post('/api/admin/clear-attendance', async (req, res) => {
-  const { year, semester, dept } = req.body;
-  try {
-    // 1. Resolve matching sections for the filters
-    const sectionFilter = {};
-    if (year) sectionFilter.year = year;
-    if (semester) sectionFilter.semester = semester;
-    if (dept) sectionFilter.dept = dept;
-    
-    const targetSections = await Section.find(sectionFilter);
-    const sectionLabels = targetSections.map(s => s.label);
+    const { year, semester, dept } = req.body;
+    try {
+        // 1. Resolve matching sections for the filters
+        const sectionFilter = {};
+        if (year) sectionFilter.year = year;
+        if (semester) sectionFilter.semester = semester;
+        if (dept) sectionFilter.dept = dept;
 
-    // 2. Clear Students matching filters (to refine records wiping)
-    const studentFilter = { ...sectionFilter };
-    const students = await Student.find(studentFilter);
-    const studentIds = students.map(s => s.id);
+        const targetSections = await Section.find(sectionFilter);
+        const sectionLabels = targetSections.map(s => s.label);
 
-    // 3. ATOMIC RESET: Delete/Reset Attendance & Locks (Optimized)
-    if (sectionLabels.length > 0) {
-      // Clear specific sections entirely (Faster & Atomic)
-      await Attendance.updateMany(
-        { section: { $in: sectionLabels } },
-        { $set: { records: {}, lockedAt: null, lockedBy: null } }
-      );
-      
-      // Also clear secondary locks
-      await Lock.deleteMany({ lockKey: { $regex: new RegExp(`.*\\|.*\\|(${sectionLabels.join('|')})\\|.*`) } });
-    } else if (studentIds.length > 0) {
-      // If we only have specific students, unset their specific keys in all records
-      const unsetObj = {};
-      studentIds.forEach(sid => unsetObj[`records.${sid}`] = "");
-      await Attendance.updateMany({}, { $unset: unsetObj });
+        // 2. Clear Students matching filters (to refine records wiping)
+        const studentFilter = { ...sectionFilter };
+        const students = await Student.find(studentFilter);
+        const studentIds = students.map(s => s.id);
+
+        // 3. ATOMIC RESET: Delete/Reset Attendance & Locks (Optimized)
+        if (sectionLabels.length > 0) {
+            // Clear specific sections entirely (Faster & Atomic)
+            await Attendance.updateMany(
+                { section: { $in: sectionLabels } },
+                { $set: { records: {}, lockedAt: null, lockedBy: null } }
+            );
+
+            // Also clear secondary locks
+            await Lock.deleteMany({ lockKey: { $regex: new RegExp(`.*\\|.*\\|(${sectionLabels.join('|')})\\|.*`) } });
+        } else if (studentIds.length > 0) {
+            // If we only have specific students, unset their specific keys in all records
+            const unsetObj = {};
+            studentIds.forEach(sid => unsetObj[`records.${sid}`] = "");
+            await Attendance.updateMany({}, { $unset: unsetObj });
+        }
+
+        res.json({ success: true, message: 'Attendance records and locks cleared successfully.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
-
-    res.json({ success: true, message: 'Attendance records and locks cleared successfully.' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
 });
 
 // --- HOD Logic: Modify Attendance ---
 app.put('/api/attendance/update', async (req, res) => {
-  const { date, section, period, records } = req.body;
-  try {
-    // HOD can override locks/existing records
-    const att = await Attendance.findOneAndUpdate(
-      { date, section, period },
-      { $set: { records } },
-      { new: true }
-    );
-    if (!att) return res.status(404).json({ success: false, message: 'No attendance record found for this period to modify.' });
-    res.json({ success: true, data: att });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+    const { date, section, period, records } = req.body;
+    try {
+        // HOD can override locks/existing records
+        const att = await Attendance.findOneAndUpdate(
+            { date, section, period },
+            { $set: { records } },
+            { new: true }
+        );
+        if (!att) return res.status(404).json({ success: false, message: 'No attendance record found for this period to modify.' });
+        res.json({ success: true, data: att });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 // Subjects
@@ -442,8 +459,8 @@ app.get('/api/attendance', (req, res) => {
         const all = await Attendance.find().lean();
         const formatted = {};
         all.forEach(a => {
-            if(!formatted[a.date]) formatted[a.date] = {};
-            if(!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
+            if (!formatted[a.date]) formatted[a.date] = {};
+            if (!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
             formatted[a.date][a.subjectId][a.period || "1"] = a.records;
         });
         return formatted;
@@ -504,86 +521,86 @@ app.get('/api/attendance/previous', async (req, res) => {
 
 // Task 1: The 'Smart-Map' Logic (Helper Function) - Refined for robustness
 function calculateNextTerm(year, sem) {
-  console.log(`Calculating promotion for Year: ${year}, Sem: ${sem}`);
-  const y = parseInt(year);
-  const s = sem ? sem.toString().trim() : "";
-  
-  // Handle both "1"/"2" and "Sem1"/"Sem2" formats
-  if (s === 'Sem1' || s === '1') {
-    return { nextYear: y.toString(), nextSem: '2' };
-  }
-  if (s === 'Sem2' || s === '2') {
-    if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
-    return { nextYear: (y + 1).toString(), nextSem: '1' };
-  }
-  
-  console.log(`No promotion mapping found for Sem: ${s}, returning current values.`);
-  return { nextYear: year, nextSem: sem };
+    console.log(`Calculating promotion for Year: ${year}, Sem: ${sem}`);
+    const y = parseInt(year);
+    const s = sem ? sem.toString().trim() : "";
+
+    // Handle both "1"/"2" and "Sem1"/"Sem2" formats
+    if (s === 'Sem1' || s === '1') {
+        return { nextYear: y.toString(), nextSem: '2' };
+    }
+    if (s === 'Sem2' || s === '2') {
+        if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
+        return { nextYear: (y + 1).toString(), nextSem: '1' };
+    }
+
+    console.log(`No promotion mapping found for Sem: ${s}, returning current values.`);
+    return { nextYear: year, nextSem: sem };
 }
 
 // Task 2: Robust Backend API (POST /api/students/bulk-promote)
 app.post('/api/students/bulk-promote', async (req, res) => {
-  const { studentIds } = req.body;
-  console.log("Bulk Promotion triggered for IDs:", studentIds);
-  
-  if (!studentIds || !studentIds.length) {
-    return res.status(400).json({ success: false, message: 'No student IDs provided' });
-  }
+    const { studentIds } = req.body;
+    console.log("Bulk Promotion triggered for IDs:", studentIds);
 
-  try {
-    // Task 3: Concurrency & Lock Prevention
-    await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true });
-
-    let updatedCount = 0;
-    for (const sid of studentIds) {
-      const student = await Student.findOne({ id: sid });
-      if (!student) {
-        console.log(`Student NOT found: ${sid}`);
-        continue;
-      }
-
-      const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
-      
-      if (nextYear === student.year && nextSem === student.semester) {
-        console.log(`No change for student ${student.roll}`);
-        continue;
-      }
-
-      // Step A: Update student
-      await Student.updateOne(
-        { id: sid },
-        { $set: { year: nextYear, semester: nextSem } }
-      );
-
-      // Step B: Robust Wipe - removing student's records from all attendance docs
-      const unsetObj = {};
-      unsetObj[`records.${sid}`] = "";
-      await Attendance.updateMany({}, { $unset: unsetObj });
-      
-      updatedCount++;
-      console.log(`Promoted Student ${student.roll}: ${student.year}/${student.semester} -> ${nextYear}/${nextSem}`);
+    if (!studentIds || !studentIds.length) {
+        return res.status(400).json({ success: false, message: 'No student IDs provided' });
     }
 
-    // Restore system maintenance flag
-    await Settings.findOneAndUpdate({}, { isSystemMaintenance: false });
+    try {
+        // Task 3: Concurrency & Lock Prevention
+        await Settings.findOneAndUpdate({}, { isSystemMaintenance: true }, { upsert: true });
 
-    res.json({ 
-      success: true, 
-      message: `Bulk promotion completed. ${updatedCount} students updated.`,
-      updatedCount 
-    });
-  } catch (err) {
-    console.error("Critical Promotion Engine Failure:", err);
-    // Try to unlock if failed
-    await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }).catch(() => {});
-    res.status(500).json({ success: false, message: 'Promotion Engine Failure: ' + err.message });
-  }
+        let updatedCount = 0;
+        for (const sid of studentIds) {
+            const student = await Student.findOne({ id: sid });
+            if (!student) {
+                console.log(`Student NOT found: ${sid}`);
+                continue;
+            }
+
+            const { nextYear, nextSem } = calculateNextTerm(student.year, student.semester);
+
+            if (nextYear === student.year && nextSem === student.semester) {
+                console.log(`No change for student ${student.roll}`);
+                continue;
+            }
+
+            // Step A: Update student
+            await Student.updateOne(
+                { id: sid },
+                { $set: { year: nextYear, semester: nextSem } }
+            );
+
+            // Step B: Robust Wipe - removing student's records from all attendance docs
+            const unsetObj = {};
+            unsetObj[`records.${sid}`] = "";
+            await Attendance.updateMany({}, { $unset: unsetObj });
+
+            updatedCount++;
+            console.log(`Promoted Student ${student.roll}: ${student.year}/${student.semester} -> ${nextYear}/${nextSem}`);
+        }
+
+        // Restore system maintenance flag
+        await Settings.findOneAndUpdate({}, { isSystemMaintenance: false });
+
+        res.json({
+            success: true,
+            message: `Bulk promotion completed. ${updatedCount} students updated.`,
+            updatedCount
+        });
+    } catch (err) {
+        console.error("Critical Promotion Engine Failure:", err);
+        // Try to unlock if failed
+        await Settings.findOneAndUpdate({}, { isSystemMaintenance: false }).catch(() => { });
+        res.status(500).json({ success: false, message: 'Promotion Engine Failure: ' + err.message });
+    }
 });
 
 // --- High Performance Reports API (Student-Centric & Type-Agnostic) ---
 app.get('/api/attendance/reports', async (req, res) => {
     let { dept, year, section, semester, from, to, refresh, subjectId } = req.query;
-    
+
     const normalizedYear = year ? String(year).trim() : null;
     const normalizedSem = semester ? String(semester).trim() : null;
     const normalizedDept = dept ? String(dept).trim() : null;
@@ -605,7 +622,7 @@ app.get('/api/attendance/reports', async (req, res) => {
             if (section.includes('-')) {
                 const parts = section.split('-');
                 if (parts[1]) {
-                    const secPart = parts[1].replace(/\d+/g, ''); 
+                    const secPart = parts[1].replace(/\d+/g, '');
                     studentQuery.section = secPart;
                 }
             } else {
@@ -651,12 +668,14 @@ app.get('/api/attendance/reports', async (req, res) => {
             { $project: { subjectId: 1, section: 1, date: 1, recArray: { $objectToArray: "$records" } } },
             { $unwind: "$recArray" },
             { $match: { "recArray.k": { $in: studentIds } } }, // Only relevant students
-            { $group: {
-                _id: { studentId: "$recArray.k", subjectId: "$subjectId" },
-                present: { $sum: { $cond: [{ $eq: ["$recArray.v", "present"] }, 1, 0] } },
-                absent: { $sum: { $cond: [{ $eq: ["$recArray.v", "absent"] }, 1, 0] } },
-                total: { $sum: 1 }
-            }}
+            {
+                $group: {
+                    _id: { studentId: "$recArray.k", subjectId: "$subjectId" },
+                    present: { $sum: { $cond: [{ $eq: ["$recArray.v", "present"] }, 1, 0] } },
+                    absent: { $sum: { $cond: [{ $eq: ["$recArray.v", "absent"] }, 1, 0] } },
+                    total: { $sum: 1 }
+                }
+            }
         ]);
 
         // 4. Data-Link Integrity: Merge Student list with Aggregated Stats
@@ -712,8 +731,4 @@ app.get('/api/attendance/reports', async (req, res) => {
     }
 });
 
-// 4. Start the Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-});
+// Server is now started within connectToDatabase() above
