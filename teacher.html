@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher Dashboard – VEMU AMS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dash-wrapper">
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <h2>VEMU INSTITUTE OF TECHNOLOGY</h2>
+      <p>Teacher Panel</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-ava ava-teacher" id="t-ava">T</div>
+      <div class="user-info">
+        <div class="uname" id="t-name">Teacher</div>
+        <div class="urole" id="t-dept-lbl">Faculty</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Overview</div>
+      <button class="nav-btn active" data-page="dashboard">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <div class="nav-group-label">Attendance</div>
+      <button class="nav-btn" data-page="mark">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Mark Attendance</span>
+      </button>
+      <button class="nav-btn" data-page="history">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>History</span>
+      </button>
+      <div class="nav-group-label">Reports</div>
+      <button class="nav-btn" data-page="reports">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>Attendance Reports</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-btn" onclick="logout()" style="color:#ef4444">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger-btn" onclick="_toggleSidebar()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="topbar-title" id="page-title">Dashboard</div>
+          <div class="topbar-date" id="page-date"></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="hamburger-btn" id="theme-toggle" onclick="THEME.toggle()" title="Toggle Theme" style="margin-right:8px">
+          <span id="theme-icon">☀️</span>
+        </button>
+        <button class="mobile-logout" onclick="logout()" title="Logout" style="margin-right:8px">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+        <span class="pill pill-amber" id="dept-badge"></span>
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:4px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05)">
+          <div style="width:24px; height:24px; border-radius:6px; background:linear-gradient(135deg, #f59e0b, #b45309); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff">T</div>
+          <span style="font-size:12px; color:#f1f5f9; font-weight:600" id="topbar-name">Teacher</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- ═══ DASHBOARD ═══ -->
+      <section class="page-section active" id="sec-dashboard">
+        <div class="stats-grid" id="t-stats"></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="margin-bottom:0">Quick Mark — Today</span>
+            <span id="today-lbl" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+            <div class="form-group"><label class="form-label">Section</label><select class="form-control" id="q-sec" style="width:150px" onchange="loadQuickGrid()"></select></div>
+            <div class="form-group"><label class="form-label">Semester</label><select class="form-control" id="q-sem" style="width:110px" onchange="loadQuickGrid()"><option value="1">Sem 1</option><option value="2">Sem 2</option></select></div>
+            <div class="form-group"><label class="form-label">Subject</label><select class="form-control" id="q-sub" style="width:190px" onchange="loadQuickGrid()"></select></div>
+            <div class="form-group"><label class="form-label">Period</label>
+              <select class="form-control" id="q-period" style="width:110px" onchange="loadQuickGrid()">
+                <option value="1">Period 1</option><option value="2">Period 2</option>
+                <option value="3">Period 3</option><option value="4">Period 4</option>
+                <option value="5">Period 5</option><option value="6">Period 6</option>
+              </select>
+            </div>
+          </div>
+          <div class="att-grid" id="quick-grid"></div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-success btn-sm" onclick="qMarkAll('present')">✓ All Present</button>
+            <button class="btn btn-danger btn-sm"  onclick="qMarkAll('absent')">✗ All Absent</button>
+            <button class="btn btn-ghost btn-sm" id="btn-quick-clone" onclick="cloneAttendance('quick')" style="border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.02); display:none">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-right:4px"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+              Copy Previous
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveQuick()">Submit & Lock</button>
+            <span id="q-counter" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">My Sections — Average Attendance</div>
+          <div id="t-sec-overview"></div>
+        </div>
+      </section>
+
+      <!-- ═══ MARK ATTENDANCE ═══ -->
+      <section class="page-section" id="sec-mark">
+        <div class="sec-header"><div><h2>Mark Attendance</h2><p>Select date, section, subject and mark each student. Attendance is locked per period.</p></div></div>
+        <div class="filter-bar" style="margin-bottom:14px">
+          <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-control" id="att-date" style="width:150px" onchange="loadAttGrid()"></div>
+          <div class="form-group">
+            <label class="form-label">Year</label>
+            <select class="form-control" id="att-year" style="width:90px" onchange="loadAttGrid()">
+              <option value="">All</option><option>1</option><option>2</option><option>3</option><option>4</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Section</label><select class="form-control" id="att-sec" style="width:130px" onchange="loadAttGrid()"></select></div>
+          <div class="form-group"><label class="form-label">Semester</label><select class="form-control" id="att-sem" style="width:105px" onchange="loadAttGrid()"><option value="1">Sem 1</option><option value="2">Sem 2</option></select></div>
+          <div class="form-group"><label class="form-label">Subject</label><select class="form-control" id="att-sub" style="width:180px" onchange="loadAttGrid()"></select></div>
+          <div class="form-group"><label class="form-label">Period</label>
+            <select class="form-control" id="att-period" style="width:110px" onchange="loadAttGrid()">
+              <option value="1">Period 1</option><option value="2">Period 2</option>
+              <option value="3">Period 3</option><option value="4">Period 4</option>
+              <option value="5">Period 5</option><option value="6">Period 6</option>
+            </select>
+          </div>
+        </div>
+        <div id="att-lock-notice" class="alert alert-success" style="display:none;margin-bottom:12px"></div>
+        <div id="att-bulk-btns" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-success btn-sm" onclick="markAllPresent()">✓ All Present</button>
+            <button class="btn btn-danger btn-sm"  onclick="markAllAbsent()">✗ All Absent</button>
+            <button class="btn btn-ghost btn-sm" id="btn-att-clone" onclick="cloneAttendance('full')" style="border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.02); display:none">
+               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-right:4px"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+               Copy from Previous Period
+            </button>
+          </div>
+          <span id="att-counts" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div class="att-grid" id="att-grid"></div>
+        <div style="margin-top:16px" id="att-save-btn">
+          <button class="btn btn-primary" onclick="saveAttendance()">Submit & Lock Attendance</button>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:10px">Each period is locked independently. Once submitted, it cannot be modified.</span>
+        </div>
+      </section>
+
+      <!-- ═══ HISTORY ═══ -->
+      <section class="page-section" id="sec-history">
+        <div class="sec-header"><div><h2>Attendance History</h2></div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <select class="form-control" id="hist-sec" style="width:150px" onchange="renderHistory()"></select>
+          <select class="form-control" id="hist-sem" style="width:110px" onchange="renderHistory()"><option value="">All Sem</option><option value="1">Sem 1</option><option value="2">Sem 2</option></select>
+          <select class="form-control" id="hist-sub" style="width:190px" onchange="renderHistory()"></select>
+          <input type="date" class="form-control" id="hist-from" style="width:145px" onchange="renderHistory()">
+          <input type="date" class="form-control" id="hist-to"   style="width:145px" onchange="renderHistory()">
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Period</th><th>Section</th><th>Sem</th><th>Subject</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th></tr></thead>
+          <tbody id="hist-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ REPORTS ═══ -->
+      <section class="page-section" id="sec-reports">
+        <div class="sec-header"><div><h2>Attendance Reports</h2><p>Filter and download — my sections</p></div></div>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label class="form-label">Year</label>
+            <select class="form-control" id="rep-year" style="width:110px"><option value="">All</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Section</label>
+            <select class="form-control" id="rep-sec" style="width:130px"><option value="">All My Sections</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semester</label>
+            <select class="form-control" id="rep-sem" style="width:110px"><option value="">All</option><option value="1">1</option><option value="2">2</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">From Date</label>
+            <input type="date" class="form-control" id="rep-from" style="width:145px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">To Date</label>
+            <input type="date" class="form-control" id="rep-to" style="width:145px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subject</label>
+            <select class="form-control" id="rep-sub" style="width:180px"></select>
+          </div>
+          <div class="form-group" style="align-self:flex-end;display:flex;gap:6px">
+            <button class="btn btn-primary btn-sm" onclick="renderReports()">Apply Filter</button>
+            <button class="btn btn-ghost btn-sm"   onclick="clearRepFilter()">Clear</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="margin-bottom:0" id="rep-count">Results</span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="downloadDetailed('word')">📋 Detailed Log</button>
+              <button class="btn btn-success btn-sm" onclick="downloadWord()">⬇ Download Word</button>
+              <button class="btn btn-ghost btn-sm"   onclick="downloadExcel()">⬇ Download Excel</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Roll</th><th>Name</th><th>Section</th><th>Subject</th><th>Subject Code</th><th>Sem</th><th>P</th><th>A</th><th>Total</th><th>%</th><th>Status</th></tr></thead>
+            <tbody id="rep-tbody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <div class="chairman-branding reveal-5">
+        <div class="chairman-name">Dr. K. Chandrashekhar Naidu</div>
+        <div class="chairman-title">Hon'ble Chairman – VEMU Group</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="app.js"></script>
+<script>
+const sess = UI.requireAuth('teacher');
+let myDept='', mySections=[], mySubjects=[];
+
+if (sess) {
+  myDept     = sess.dept;
+  mySections = Array.isArray(sess.sections) ? sess.sections : [];
+  mySubjects = Array.isArray(sess.subjects) ? sess.subjects : [];
+  document.getElementById('dept-badge').textContent = myDept;
+  document.getElementById('topbar-name').textContent= sess.name;
+  document.getElementById('page-date').textContent  = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+
+// ── Nav ──
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+page)?.classList.add('active');
+  document.getElementById('page-title').textContent=document.querySelector(`[data-page="${page}"] span`)?.textContent||page;
+  ({dashboard:loadDash,mark:initMark,history:initHistory,reports:initReports})[page]?.();
+}
+document.querySelectorAll('.nav-btn[data-page]').forEach(b=>b.addEventListener('click',()=>navTo(b.dataset.page)));
+
+function populateMySelects() {
+  const ids = ['q-sec', 'att-sec', 'hist-sec'];
+  const secOpts = mySections.map(s => `<option value="${s}">${s}</option>`).join('');
+  
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.innerHTML.trim() === "") {
+      el.innerHTML = secOpts || '<option value="">No sections</option>';
+    }
+  });
+
+  refreshSubjectFilters();
+}
+
+function refreshSubjectFilters() {
+  const update = (subId, semId) => {
+    const sem = document.getElementById(semId)?.value;
+    const el = document.getElementById(subId);
+    if (!el) return;
+    
+    const prev = el.value;
+    const allSubs = DATA.getSubjects();
+    const filtered = mySubjects.filter(codeName => {
+      const obj = allSubs.find(x => x.name === codeName || x.code === codeName);
+      return !sem || (obj && obj.semester == sem);
+    });
+    
+    el.innerHTML = filtered.length ? filtered.map(s => `<option value="${s}">${s}</option>`).join('') : '<option value="">No subjects</option>';
+    if (prev && filtered.includes(prev)) el.value = prev;
+  };
+  ['q', 'att', 'hist'].forEach(pre => update(pre + '-sub', pre + '-sem'));
+}
+
+function parseSec(label){
+  if(!label || typeof label !== 'string') return null;
+  const m=label.match(/^([A-Z]+)-(\d)([A-Z]+)(?:-S(\d))?$/);
+  return m ? {dept:m[1], year:m[2], section:m[3], semester:m[4]||null, label} : null;
+}
+
+// ═══════════════ DASHBOARD ═══
+let qState={};
+function loadDash() {
+  populateMySelects();
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('today-lbl').textContent='Today: '+UI.fmtDate(today);
+
+  let dashStudents=[];
+  mySections.forEach(sec=>{const p=parseSec(sec);if(p)dashStudents.push(...DATA.getStudents(p));});
+
+  const now = new Date();
+  const mName = now.toLocaleString('en-IN', { month: 'long' });
+  const avg = dashStudents.length ? Math.round(dashStudents.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/dashStudents.length) : 0;
+  const avgM = dashStudents.length ? Math.round(dashStudents.reduce((a,s)=>a+DATA.getStudentMonthlyStats(s.id, now.getFullYear(), now.getMonth()).pct,0)/dashStudents.length) : 0;
+
+  document.getElementById('t-stats').innerHTML=`
+    <div class="stat-card cyan"><div class="stat-val">${mySections.length}</div><div class="stat-lbl">My Sections</div></div>
+    <div class="stat-card purple"><div class="stat-val">${mySubjects.length}</div><div class="stat-lbl">My Subjects</div></div>
+    <div class="stat-card purple light"><div class="stat-val">${avgM}%</div><div class="stat-lbl">Avg. in ${mName}</div><div class="stat-sub">Monthly trend</div></div>
+    <div class="stat-card green"><div class="stat-val">${dashStudents.length}</div><div class="stat-lbl">Total Students</div></div>
+    <div class="stat-card yellow"><div class="stat-val">${avg}%</div><div class="stat-lbl">Avg. Attendance</div><div class="stat-sub">Total overall</div></div>`;
+
+  loadQuickGrid();
+
+  document.getElementById('t-sec-overview').innerHTML=mySections.map(sec=>{
+    const p=parseSec(sec); if(!p) return '';
+    const ss=DATA.getStudents(p);
+    const avg=ss.length?Math.round(ss.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/ss.length):0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--glass-border)">
+      <div><div style="font-size:13px;font-weight:600;color:var(--text-main)">${sec}</div><div style="font-size:11px;color:var(--text-muted)">${ss.length} students</div></div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="width:80px"><div class="progress"><div class="progress-fill" style="width:${avg}%;background:${UI.pctColor(avg)}"></div></div></div><span class="pill ${UI.pctPill(avg)}">${avg}%</span></div></div>`;
+  }).join('');
+}
+
+function loadQuickGrid() {
+  const secLabel = document.getElementById('q-sec')?.value;
+  const sem = document.getElementById('q-sem')?.value;
+  const period = document.getElementById('q-period')?.value || "1";
+  
+  refreshSubjectFilters();
+  const subName = document.getElementById('q-sub')?.value;
+  const p = parseSec(secLabel);
+
+  const quickStudents = p ? DATA.getStudents({ dept: p.dept, year: p.year, section: p.section, semester: sem }) : [];
+  const subObj = DATA.getSubjects().find(s => s.name === subName || s.code === subName);
+  const today = new Date().toISOString().split('T')[0];
+  const locked = subObj ? DATA.isLocked(today, subObj.id, secLabel, period) : false;
+
+  qState = {};
+  if (locked && subObj) {
+    const records = DATA.getSessionAtt(today, subObj.id, period);
+    quickStudents.forEach(s => qState[s.id] = records[s.id] || null);
+    renderQuickGrid(quickStudents, true);
+    const lockBy = DATA.getLockInfo(today, subObj.id, secLabel, period)?.lockedBy || 'Unknown';
+    document.getElementById('q-lock-msg').innerHTML = `<div class="alert alert-success">Locked by ${lockBy}</div>`;
+    document.getElementById('q-bulk-btns').style.display = 'none';
+  } else {
+    quickStudents.forEach(s => qState[s.id] = null);
+    renderQuickGrid(quickStudents, false);
+    const period = document.getElementById('q-period')?.value || "1";
+    const btnClone = document.getElementById('btn-quick-clone');
+    if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
+
+    document.getElementById('q-lock-msg').innerHTML = '';
+    document.getElementById('q-bulk-btns').style.display = 'flex';
+  }
+}
+
+function renderQuickGrid(sList, locked) {
+  const card = s => {
+    const st = qState[s.id];
+    return `<div class="att-card ${st || ''}" id="qc-${s.id}">
+      <div class="ava ava-sm ${UI.avaColor(s.id)}">${UI.initials(s.name)}</div>
+      <div class="att-card-info"><div class="sname">${s.name}</div><div class="sroll">${s.roll} (S${s.semester || '—'})</div></div>
+      <div class="att-toggle">
+        <button class="att-btn ${st === 'present' ? 'p-active' : ''}" onclick="setQ('${s.id}','present')" title="Present" ${locked?'disabled':''}>✓</button>
+        <button class="att-btn ${st === 'absent' ? 'a-active' : ''}"  onclick="setQ('${s.id}','absent')"  title="Absent" ${locked?'disabled':''}>✗</button>
+      </div>
+    </div>`;
+  };
+
+  const regular = sList.filter(s => (s.studentType || 'Regular') === 'Regular');
+  const le = sList.filter(s => s.studentType === 'LE');
+
+  let html = '';
+  if (regular.length) html += `<div class="grid-section-header">Regular Students (${regular.length})</div>` + regular.map(card).join('');
+  if (le.length) html += `<div class="grid-section-header">Lateral Entry Students (LE) (${le.length})</div>` + le.map(card).join('');
+
+  document.getElementById('quick-grid').innerHTML = html || `<div class="alert alert-info" style="grid-column:1/-1;text-align:center;padding:20px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1)">No students found.</div>`;
+  updateQCounter();
+}
+function setQ(id,val){
+  qState[id]=qState[id]===val?null:val;
+  const c=document.getElementById('qc-'+id); if(!c) return;
+  c.className='att-card '+(qState[id]||'');
+  c.querySelectorAll('.att-btn')[0].className='att-btn '+(qState[id]==='present'?'p-active':'');
+  c.querySelectorAll('.att-btn')[1].className='att-btn '+(qState[id]==='absent'?'a-active':'');
+  updateQCounter();
+}
+function qMarkAll(v){
+  const qMarkStudents = filterStudentsQuick();
+  qMarkStudents.forEach(s => qState[s.id] = v);
+  renderQuickGrid(qMarkStudents, false);
+}
+function filterStudentsQuick() {
+  const secLabel = document.getElementById('q-sec')?.value;
+  const sem = document.getElementById('q-sem')?.value;
+  const p = parseSec(secLabel);
+  return p ? DATA.getStudents({ dept: p.dept, year: p.year, section: p.section, semester: sem }) : [];
+}
+function updateQCounter(){ const v=Object.values(qState); document.getElementById('q-counter').textContent=`Present: ${v.filter(x=>x==='present').length}  Absent: ${v.filter(x=>x==='absent').length}`; }
+async function saveQuick(){
+  const subName=document.getElementById('q-sub')?.value;
+  const secLabel=document.getElementById('q-sec')?.value||'';
+  const period=document.getElementById('q-period')?.value || "1";
+  const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
+  if (!subObj){UI.toast('Subject not found in system','warning');return;}
+  const today=new Date().toISOString().split('T')[0];
+  const unmarked=Object.values(qState).filter(v=>!v).length;
+  if(unmarked>0){UI.toast(`${unmarked} student(s) not marked.`,'error');return;}
+  const result=await DATA.saveSessionAtt(today,subObj.id,{...qState},secLabel,sess.name,period);
+  if(!result.success){UI.toast('This attendance session is locked.','error');return;}
+  UI.toast('Attendance submitted and locked.');
+  loadQuickGrid();
+}
+
+// ═══════════════ MARK ATTENDANCE ═══
+let attState={}, attLocked=false;
+function initMark(){
+  populateMySelects();
+  document.getElementById('att-date').value=new Date().toISOString().split('T')[0];
+  loadAttGrid();
+}
+function loadAttGrid(){
+  const secLabel=document.getElementById('att-sec')?.value;
+  const period=document.getElementById('att-period')?.value || "1";
+  refreshSubjectFilters();
+  const subName =document.getElementById('att-sub')?.value;
+  const date    =document.getElementById('att-date')?.value;
+  if (!secLabel) return;
+  const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
+  const locked=subObj&&date?DATA.isLocked(date,subObj.id,secLabel,period):false;
+  attLocked=locked;
+  const saved=subObj&&date?DATA.getSessionAtt(date,subObj.id,period):{};
+  
+  attState={};
+  const attStudents = filterStudents();
+  attStudents.forEach(s=>attState[s.id]=saved[s.id]||null);
+
+  const lockNotice=document.getElementById('att-lock-notice');
+  const savBtn=document.getElementById('att-save-btn');
+  const bulkBtns=document.getElementById('att-bulk-btns');
+  if (locked) {
+    const info=subObj?DATA.getLockInfo(date,subObj.id,secLabel,period):null;
+    const by=info?` by ${info.lockedBy}`:'';
+    lockNotice.innerHTML=`✓ Period ${period} attendance already locked${by}.`;
+    lockNotice.style.display='flex';
+    if(savBtn) savBtn.style.display='none';
+    if(bulkBtns) bulkBtns.style.display='none';
+  } else {
+    lockNotice.style.display='none';
+    if(savBtn) savBtn.style.display='';
+    if(bulkBtns) bulkBtns.style.display='flex';
+    
+    // Toggle Clone Button
+    const btnClone = document.getElementById('btn-att-clone');
+    if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
+  }
+  renderAttGrid(attStudents);
+}
+function renderAttGrid(sList){
+  const card = s => {
+    const st = attState[s.id];
+    const sp = DATA.getStudentStats(s.id).pct;
+    return `<div class="att-card ${st || ''}" id="ac-${s.id}">
+      <div class="ava ava-sm ${UI.avaColor(s.id)}">${UI.initials(s.name)}</div>
+      <div class="att-card-info"><div class="sname">${s.name}</div><div class="sroll">${s.roll} (S${s.semester || '—'}) <span class="${UI.pctClass(sp)}">${sp}%</span></div></div>
+      <div class="att-toggle">
+        <button class="att-btn ${st === 'present' ? 'p-active' : ''}" onclick="setA('${s.id}','present')" title="Present" ${attLocked ? 'disabled' : ''}>✓</button>
+        <button class="att-btn ${st === 'absent' ? 'a-active' : ''}"  onclick="setA('${s.id}','absent')"  title="Absent"  ${attLocked ? 'disabled' : ''}>✗</button>
+      </div>
+    </div>`;
+  };
+
+  const regular = sList.filter(s => (s.studentType || 'Regular') === 'Regular');
+  const le = sList.filter(s => s.studentType === 'LE');
+
+  let html = '';
+  if (regular.length) html += `<div class="grid-section-header">Regular Students (${regular.length})</div>` + regular.map(card).join('');
+  if (le.length) html += `<div class="grid-section-header">Lateral Entry Students (LE) (${le.length})</div>` + le.map(card).join('');
+
+  document.getElementById('att-grid').innerHTML = html || '<div class="alert alert-warning" style="grid-column:1/-1;text-align:center;padding:30px">No students found.</div>';
+  const v = Object.values(attState);
+  document.getElementById('att-counts').textContent = `Present: ${v.filter(x => x === 'present').length}  Absent: ${v.filter(x => x === 'absent').length}  Total: ${v.length}`;
+}
+
+function filterStudents() {
+  const secLabel = document.getElementById('att-sec')?.value;
+  const yearSelect = document.getElementById('att-year')?.value;
+  const semesterSelect = document.getElementById('att-sem')?.value;
+  const p = parseSec(secLabel);
+  if (!p) return [];
+  let list = DATA.getStudents({ dept: p.dept, year: yearSelect || p.year, section: p.section, semester: semesterSelect });
+  list.sort((a, b) => a.roll.localeCompare(b.roll, undefined, { numeric: true, sensitivity: 'base' }));
+  return list;
+}
+
+function setA(id,val){
+  if(attLocked) return;
+  attState[id]=attState[id]===val?null:val;
+  const c=document.getElementById('ac-'+id); if(!c) return;
+  c.className='att-card '+(attState[id]||'');
+  c.querySelectorAll('.att-btn')[0].className='att-btn '+(attState[id]==='present'?'p-active':'');
+  c.querySelectorAll('.att-btn')[1].className='att-btn '+(attState[id]==='absent'?'a-active':'');
+  const v=Object.values(attState);
+  document.getElementById('att-counts').textContent=`Present: ${v.filter(x=>x==='present').length}  Absent: ${v.filter(x=>x==='absent').length}  Total: ${v.length}`;
+}
+
+function markAllPresent() { markBulk('present'); }
+function markAllAbsent() { markBulk('absent'); }
+
+function markBulk(val) {
+  if (attLocked) return;
+  const bulkStudents = filterStudents();
+  bulkStudents.forEach(s => { attState[s.id] = val; });
+  renderAttGrid(bulkStudents);
+}
+async function saveAttendance(){
+  if(attLocked){UI.toast('Locked','error');return;}
+  const subName=document.getElementById('att-sub')?.value;
+  const secLabel=document.getElementById('att-sec')?.value||'';
+  const date=document.getElementById('att-date')?.value;
+  const period=document.getElementById('att-period')?.value || "1";
+  const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
+  if(!subObj){UI.toast('Subject not found','warning');return;}
+  const unmarked=Object.values(attState).filter(v=>!v).length;
+  if(unmarked>0){UI.toast(`Mark all students.`,'error');return;}
+  const result=await DATA.saveSessionAtt(date,subObj.id,{...attState},secLabel,sess.name,period);
+  if(!result.success){UI.toast('Locked','error');return;}
+  UI.toast('Attendance locked.');
+  loadAttGrid();
+}
+
+async function cloneAttendance(type) {
+  const isQuick = (type === 'quick');
+  const date = isQuick ? new Date().toISOString().split('T')[0] : document.getElementById('att-date').value;
+  const section = document.getElementById(isQuick ? 'q-sec' : 'att-sec').value;
+  const period = document.getElementById(isQuick ? 'q-period' : 'att-period').value;
+  if (period == "1") return;
+  const records = await DATA.getPreviousAtt(date, section, period);
+  if (!records) { UI.toast('No previous records found.', 'warning'); return; }
+  if (isQuick) {
+    Object.keys(qState).forEach(sid => { if (records[sid]) qState[sid] = records[sid]; });
+    renderQuickGrid(filterStudentsQuick(), false);
+  } else {
+    Object.keys(attState).forEach(sid => { if (records[sid]) attState[sid] = records[sid]; });
+    renderAttGrid(filterStudents());
+  }
+}
+
+// ═══════════════ HISTORY ═══════════════
+function initHistory(){
+  populateMySelects();
+  const today=new Date().toISOString().split('T')[0];
+  const from=new Date(); from.setDate(from.getDate()-14);
+  document.getElementById('hist-from').value=from.toISOString().split('T')[0];
+  document.getElementById('hist-to').value=today;
+  renderHistory();
+}
+function renderHistory(){
+  const secLabel=document.getElementById('hist-sec')?.value||'';
+  const subName =document.getElementById('hist-sub')?.value||'';
+  const from=document.getElementById('hist-from')?.value||'';
+  const to  =document.getElementById('hist-to')?.value||'';
+  const all=DATA.getAttendance();
+  const subjects=DATA.getSubjects();
+  const rows=[];
+  Object.entries(all).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([date,dayData])=>{
+    if(from&&date<from)return; if(to&&date>to)return;
+    subjects.forEach(sub=>{
+      if(subName&&sub.name!==subName&&sub.code!==subName)return;
+      const d=dayData[sub.id]; if(!d)return;
+      Object.entries(d).forEach(([period, records])=>{
+        let p=0,ab=0;
+        Object.values(records).forEach(v=>{if(v==='present')p++;else if(v==='absent')ab++;});
+        if(p+ab===0)return;
+        rows.push({date,period,sec:secLabel,subName:sub.name,sem:sub.semester,p,ab,total:p+ab,pct:Math.round((p)/(p+ab)*100)});
+      });
+    });
+  });
+  document.getElementById('hist-tbody').innerHTML=rows.length
+    ? rows.map(r=>`<tr><td class="fw-600">${UI.fmtDate(r.date)}</td><td>P${r.period}</td><td>${r.sec}</td><td>Sem ${r.sem||'—'}</td><td><span class="pill pill-blue">${r.subName}</span></td><td style="color:#34d399">${r.p}</td><td style="color:#f87171">${r.ab}</td><td>${r.total}</td><td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td></tr>`).join('')
+    : '<tr class="empty-row"><td colspan="10">No history found</td></tr>';
+}
+
+// ═══════════════ REPORTS ═══
+function initReports(){
+  const repSec=document.getElementById('rep-sec');
+  if(repSec) repSec.innerHTML='<option value="">All My Sections</option>'+mySections.map(s=>`<option value="${s}">${s}</option>`).join('');
+  const today=new Date().toISOString().split('T')[0];
+  const from=new Date(); from.setDate(from.getDate()-30);
+  document.getElementById('rep-from').value=from.toISOString().split('T')[0];
+  document.getElementById('rep-to').value=today;
+  
+  // Attach listeners for dynamic re-rendering
+  ['rep-year','rep-sec','rep-sem','rep-from','rep-to','rep-sub'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.onchange = renderReports;
+  });
+
+  // Populate Subject list
+  const repSub = document.getElementById('rep-sub');
+  if (repSub) {
+    repSub.innerHTML = '<option value="">All My Subjects</option>' + mySubjects.map(s => `<option value="${s}">${s}</option>`).join('');
+  }
+
+  renderReports();
+}
+function clearRepFilter(){ ['rep-year','rep-sec','rep-sem'].forEach(i=>document.getElementById(i).value=''); initReports(); }
+async function renderReports(){
+  const secLabel=document.getElementById('rep-sec')?.value;
+  let parsed=null; if(secLabel){parsed=parseSec(secLabel);}
+  const subValue = document.getElementById('rep-sub')?.value;
+  const subObj = DATA.getSubjects().find(s => s.name === subValue || s.code === subValue);
+
+  const f = {
+    dept: myDept,
+    year: parsed?.year || (document.getElementById('rep-year')?.value||undefined),
+    section: parsed?.section || undefined,
+    semester: document.getElementById('rep-sem')?.value||undefined,
+    from: document.getElementById('rep-from')?.value||undefined,
+    to:   document.getElementById('rep-to')?.value||undefined,
+    subjectId: subObj ? subObj.id : undefined
+  };
+
+  const tbody = document.getElementById('rep-tbody');
+  tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">Generating Academic Analytics...</p></td></tr>`;
+
+  const data = await DATA.getFilteredAttendance(f);
+  
+  const regular = data.filter(r => (r.student.studentType || 'Regular') === 'Regular');
+  const le = data.filter(r => r.student.studentType === 'LE');
+
+  const row = r => `<tr>
+    <td class="text-muted">${r.student.roll}</td>
+    <td class="fw-600">${r.student.name}</td>
+    <td>${r.student.section}</td>
+    <td>${r.subject.name}</td>
+    <td><span class="pill pill-blue">${r.subject.code}</span></td>
+    <td>${r.subject.semester}</td>
+    <td style="color:#34d399">${r.present}</td>
+    <td style="color:#f87171">${r.absent}</td>
+    <td>${r.total}</td>
+    <td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td>
+    <td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'ELIGIBLE':'SHORTAGE'}</span></td>
+  </tr>`;
+
+  let html = '';
+  if (regular.length) html += `<tr class="table-group-header"><td colspan="11">Regular Students (${regular.length})</td></tr>` + regular.map(row).join('');
+  if (le.length) html += `<tr class="table-group-header"><td colspan="11">Lateral Entry Students (LE) (${le.length})</td></tr>` + le.map(row).join('');
+
+  document.getElementById('rep-count').textContent=`${data.length} records`;
+  tbody.innerHTML = html || '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted)">No attendance recorded for this criteria.</td></tr>';
+}
+function downloadWord() { downloadTeacherReport('word'); }
+function downloadExcel() { downloadTeacherReport('csv'); }
+
+function downloadTeacherReport(fmt) {
+  const secLabel = document.getElementById('rep-sec')?.value;
+  const subValue = document.getElementById('rep-sub')?.value;
+  
+  if (!subValue) {
+    UI.toast("Please select a Subject to generate the Academic Report.", "warning");
+    return;
+  }
+
+  const subObj = DATA.getSubjects().find(s => s.name === subValue || s.code === subValue);
+  const parsed = secLabel ? parseSec(secLabel) : null;
+  
+  const f = {
+    dept: myDept,
+    year: parsed?.year || (document.getElementById('rep-year')?.value || undefined),
+    section: parsed?.section || undefined,
+    semester: document.getElementById('rep-sem')?.value || undefined,
+    from: document.getElementById('rep-from')?.value || undefined,
+    to:   document.getElementById('rep-to')?.value || undefined,
+    subjectId: subObj ? subObj.id : undefined,
+    subjectName: subValue || undefined
+  };
+
+  // Strictly route to subjectSummaryReport for teachers as requested
+  EXPORT.subjectSummaryReport(f, fmt);
+}
+
+function downloadRep(fmt){
+  const secLabel=document.getElementById('rep-sec')?.value;
+  const subValue=document.getElementById('rep-sub')?.value;
+  const subObj=DATA.getSubjects().find(s=>s.name===subValue||s.code===subValue);
+  const parsed=secLabel?parseSec(secLabel):null;
+  const f={
+    dept: myDept,
+    year: parsed?.year||(document.getElementById('rep-year')?.value||undefined),
+    section: parsed?.section||undefined,
+    semester: document.getElementById('rep-sem')?.value||undefined,
+    from: document.getElementById('rep-from')?.value||undefined,
+    to:   document.getElementById('rep-to')?.value||undefined,
+    subjectId: subObj ? subObj.id : undefined,
+    subjectName: subValue || undefined
+  };
+  EXPORT.filteredReport(f,fmt);
+}
+function downloadDetailed(fmt){
+  const secLabel=document.getElementById('rep-sec')?.value;
+  const parsed=secLabel?parseSec(secLabel):null;
+  const f={
+    dept: myDept,
+    year: parsed?.year||(document.getElementById('rep-year')?.value||undefined),
+    section: parsed?.section||undefined,
+    semester: document.getElementById('rep-sem')?.value||undefined,
+    from: document.getElementById('rep-from')?.value||undefined,
+    to:   document.getElementById('rep-to')?.value||undefined
+  };
+  EXPORT.detailedReport(f,fmt);
+}
+
+// ── Init ──
+window.addEventListener('app_ready', () => {
+    loadDash();
+});
+</script>
+</body>
+</html>

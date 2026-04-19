@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Portal – VEMU AMS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dash-wrapper">
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <h2>VEMU INSTITUTE OF TECHNOLOGY</h2>
+      <p>Student Portal</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-ava ava-student" id="s-ava">S</div>
+      <div class="user-info">
+        <div class="uname" id="s-name">Student</div>
+        <div class="urole" id="s-roll-lbl">Roll No</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">My Attendance</div>
+      <button class="nav-btn active" data-page="overview">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Overview</span>
+      </button>
+      <button class="nav-btn" data-page="subjects">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13"/></svg>
+        <span>Subject-wise</span>
+      </button>
+      <button class="nav-btn" data-page="calendar">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Calendar</span>
+      </button>
+      <button class="nav-btn" data-page="profile">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span>My Profile</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-btn" onclick="logout()" style="color:#ef4444">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger-btn" onclick="_toggleSidebar()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="topbar-title" id="page-title">Overview</div>
+          <div class="topbar-date" id="page-date"></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="hamburger-btn" id="theme-toggle" onclick="THEME.toggle()" title="Toggle Theme" style="margin-right:8px">
+          <span id="theme-icon">☀️</span>
+        </button>
+        <button class="mobile-logout" onclick="logout()" title="Logout" style="margin-right:8px">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+        <span class="pill pill-green" id="roll-badge"></span>
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:4px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05)">
+          <div style="width:24px; height:24px; border-radius:6px; background:linear-gradient(135deg, #10b981, #065f46); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff">S</div>
+          <span style="font-size:12px; color:#f1f5f9; font-weight:600" id="topbar-name">Student</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- ═══ OVERVIEW ═══ -->
+      <section class="page-section active" id="sec-overview">
+        <div id="low-alert" class="alert alert-danger hidden"></div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center">
+          <span style="font-size:13px;color:#94a3b8">Filter by Semester:</span>
+          <select class="form-control" id="s-filter-sem" style="width:110px" onchange="loadOverview()"><option value="">All Sem</option><option value="1">Sem 1</option><option value="2">Sem 2</option></select>
+        </div>
+        <div class="stats-grid" id="s-stats"></div>
+        <div class="grid-2">
+          <div class="card" style="display:flex;flex-direction:column;align-items:center;padding:24px">
+            <div style="font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:12px">Overall Attendance</div>
+            <div id="s-donut"></div>
+            <div id="eligibility-note" style="font-size:12px;margin-top:8px;text-align:center"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Attendance This Week</div>
+            <div class="bar-chart" id="s-chart" style="padding-top:6px"></div>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top:15px">
+           <!-- PREDICTOR CARD -->
+          <div class="card">
+            <div class="card-title" style="display:flex;align-items:center;gap:10px">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              Attendance Predictor
+            </div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:15px">Simulate how future attendance affects your final score.</div>
+            <div class="form-group">
+              <label class="form-label">Plan to attend next classes?</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="pred-future" class="form-control" placeholder="e.g. 10" min="1" style="width:100px">
+                <span style="font-size:13px;color:#94a3b8">classes</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="runPrediction()" style="width:100%">Calculate Forecast</button>
+            <div id="pred-result" class="hidden" style="margin-top:20px;padding:15px;background:rgba(59,130,246,0.05);border-radius:14px;border:1px solid var(--glass-border)">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <span style="font-size:13px;color:#94a3b8">Projected Attendance</span>
+                <span id="pred-pct" style="font-size:22px;font-weight:800"></span>
+              </div>
+              <div class="progress" style="height:4px"><div id="pred-bar" class="progress-fill"></div></div>
+              <p id="pred-msg" style="font-size:11px;margin-top:10px;line-height:1.4"></p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title" style="margin-bottom:0">Recent Records</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-success btn-sm" onclick="downloadRecent('word')">⬇ Download Word</button>
+                <button class="btn btn-ghost btn-sm"   onclick="downloadRecent('csv')">⬇ Download CSV</button>
+              </div>
+            </div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Date</th><th>Subject</th><th>Status</th></tr></thead>
+              <tbody id="recent-tbody"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ SUBJECT-WISE ═══ -->
+      <section class="page-section" id="sec-subjects">
+        <div class="sec-header">
+          <div><h2>Subject-wise Attendance</h2><p>Your attendance per subject</p></div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <select class="form-control" id="sub-filter-sem" style="width:110px" onchange="loadSubjects()"><option value="">All Sem</option><option value="1">Sem 1</option><option value="2">Sem 2</option></select>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-success btn-sm" onclick="downloadRecent('word')">⬇ Download Word</button>
+              <button class="btn btn-ghost btn-sm"   onclick="downloadRecent('csv')">⬇ Download CSV</button>
+            </div>
+          </div>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Subject</th><th>Code</th><th>Sem</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th><th>Status</th><th>Remark</th></tr></thead>
+          <tbody id="sub-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ CALENDAR ═══ -->
+      <section class="page-section" id="sec-calendar">
+        <div class="sec-header">
+          <div><h2>Calendar View</h2></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">‹ Prev</button>
+            <span id="cal-label" style="font-size:13px;font-weight:600;color:#f1f5f9;min-width:130px;text-align:center"></span>
+            <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">Next ›</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <span style="font-size:12px;color:#64748b">Legend:</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>Present</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:12px"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>Absent</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:12px"><span style="width:10px;height:10px;border-radius:2px;background:#334155;display:inline-block"></span>Weekend</span>
+          </div>
+        </div>
+        <div class="card" id="cal-card"></div>
+      </section>
+
+      <!-- ═══ PROFILE ═══ -->
+      <section class="page-section" id="sec-profile">
+        <div class="sec-header"><div><h2>My Profile</h2></div></div>
+        <div class="grid-2">
+          <div class="card">
+            <div id="profile-info"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Attendance Summary</div>
+            <div id="profile-summary"></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+  <button id="back-to-dash" class="btn btn-primary back-to-dash hidden" onclick="returnToDashboard()">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5m7 7l-7-7 7-7"/></svg>
+    Back to Dashboard
+  </button>
+</div>
+
+<div id="toast-container"></div>
+<script src="app.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const viewAsId = params.get('viewAs');
+let sess = UI.requireAuth(); // Generic auth check first
+let myId = '';
+let isViewOnly = false;
+
+// Security & Context Check
+if (sess.role === 'student') {
+  myId = sess.id;
+  if (viewAsId && viewAsId !== myId) {
+    // Student trying to view someone else? Direct them back to their own.
+    window.location.href = 'student.html';
+  }
+} else if (sess.role === 'admin' || sess.role === 'hod') {
+  if (viewAsId) {
+    myId = viewAsId;
+    isViewOnly = true;
+  } else {
+    // Admin/HOD visiting student.html without a target? Send them back.
+    AUTH.redirectByRole(sess.role);
+  }
+} else {
+  // Teachers or unknown roles don't have access to detailed student view
+  AUTH.redirectByRole(sess.role);
+}
+
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+
+function returnToDashboard() {
+  AUTH.redirectByRole(sess.role);
+}
+
+window.addEventListener('app_ready', () => {
+  const student = DATA.getStudents().find(s => s.id === myId);
+  if (!student) {
+    UI.toast('Student record not found', 'error');
+    setTimeout(() => returnToDashboard(), 2000);
+    return;
+  }
+
+  // Update UI with target student data
+  document.getElementById('s-name').textContent     = student.name;
+  document.getElementById('s-ava').textContent      = UI.initials(student.name);
+  document.getElementById('s-roll-lbl').textContent = student.roll;
+  document.getElementById('roll-badge').textContent = student.roll;
+  document.getElementById('topbar-name').textContent= student.name;
+  document.getElementById('page-date').textContent  = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  if (isViewOnly) {
+    // Show banner and back button
+    const banner = document.createElement('div');
+    banner.className = 'view-as-banner';
+    banner.innerHTML = `<span>Viewing Profile as Admin: <strong>${student.name} (${student.roll})</strong></span> <span class="pill pill-blue">Read Only</span>`;
+    document.querySelector('.page-content').prepend(banner);
+    document.getElementById('back-to-dash').classList.remove('hidden');
+    
+    // Disable any student-specific actions if they existed (like profile editing, though not yet implemented)
+  }
+  
+  loadOverview();
+});
+
+// ── Nav ──
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+page)?.classList.add('active');
+  document.getElementById('page-title').textContent=document.querySelector(`[data-page="${page}"] span`)?.textContent||page;
+  ({overview:loadOverview,subjects:loadSubjects,calendar:renderCalendar,profile:loadProfile})[page]?.();
+}
+document.querySelectorAll('.nav-btn[data-page]').forEach(b=>b.addEventListener('click',()=>navTo(b.dataset.page)));
+
+// ═══════════════ OVERVIEW ═══════════════
+function loadOverview() {
+  try {
+    const sem=document.getElementById('s-filter-sem')?.value||undefined;
+    const st=DATA.getStudentStats(myId, sem);
+
+    // Donut Chart
+    const donutEl = document.getElementById('s-donut');
+    if (donutEl) UI.drawDonut(donutEl, st.pct, UI.pctColor(st.pct));
+
+    const noteEl=document.getElementById('eligibility-note');
+    if (st.pct>=75) {
+      noteEl.style.color='#34d399'; noteEl.textContent='✓ Eligible for examinations';
+    } else {
+      const needed=st.total ? Math.ceil((0.75*(st.total+20)-st.present)) : 0;
+      noteEl.style.color='#f87171'; noteEl.textContent=st.total ? `Need ~${Math.max(0,needed)} more classes to reach 75%` : 'No classes recorded yet';
+    }
+
+    // Stat Cards
+    document.getElementById('s-stats').innerHTML = `
+      <div class="stat-card reveal-1"><div class="stat-val" style="color:#34d399">${st.present}</div><div class="stat-lbl">Classes Present</div></div>
+      <div class="stat-card reveal-2"><div class="stat-val" style="color:#f87171">${st.absent}</div><div class="stat-lbl">Classes Absent</div></div>
+      <div class="stat-card reveal-3"><div class="stat-val" style="color:#60a5fa">${st.total}</div><div class="stat-lbl">Total Conducted</div></div>
+      <div class="stat-card reveal-4"><div class="stat-val" style="color:${UI.pctColor(st.pct)}">${st.pct}%</div><div class="stat-lbl">Current Attendance</div></div>`;
+
+  // Trend Chart (Using the refactored centerized logic)
+  const trendData = DATA.getWeeklyTrend(myId, sem);
+  UI.drawBarChart('s-chart', trendData);
+
+  // Recent Records (Fixed for multi-period structure)
+  const rows = [];
+  const all = DATA.getAttendance();
+  Object.entries(all).sort((a,b) => b[0].localeCompare(a[0])).forEach(([date, dayData]) => {
+    Object.entries(dayData).forEach(([subId, periods]) => {
+      const sub = DATA.getSubjects().find(x => x.id === subId);
+      if (sem && sub && sub.semester != sem) return;
+      
+      Object.entries(periods).sort((a,b) => a[0].localeCompare(b[0])).forEach(([pId, records]) => {
+        if (records[myId] !== undefined) {
+          rows.push({ 
+            date, 
+            subName: sub ? sub.name : 'Unknown', 
+            status: records[myId],
+            period: pId
+          });
+        }
+      });
+    });
+  });
+  
+    document.getElementById('recent-tbody').innerHTML = rows.slice(0, 15).map(r => `
+      <tr>
+        <td class="fw-600">${UI.fmtDate(r.date)} <span style="font-size:10px;color:var(--text-dim)">P${r.period}</span></td>
+        <td><span class="pill pill-blue">${r.subName}</span></td>
+        <td><span class="pill ${r.status === 'present' ? 'pill-green' : 'pill-red'}">${r.status}</span></td>
+      </tr>`)
+      .join('') || '<tr class="empty-row"><td colspan="3">No records yet</td></tr>';
+  } catch (err) {
+    console.error("Critical rendering error in loadOverview:", err);
+    document.getElementById('recent-tbody').innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:#f87171">Data rendering failed. Please refresh.</td></tr>';
+  }
+}
+
+function loadSubjects() {
+  try {
+    const student=DATA.getStudents().find(s=>s.id===myId)||sess;
+    const sem=document.getElementById('sub-filter-sem')?.value;
+    let subjects=DATA.getSubjects(student.dept,student.year,sem||undefined);
+    if(!subjects.length && !sem) subjects=DATA.getSubjects();
+
+    document.getElementById('sub-tbody').innerHTML=subjects.map(sub=>{
+      const st=DATA.getStudentSubjectStats(myId,sub.id);
+      const needed=st.pct<75&&st.total?Math.max(0,Math.ceil(0.75*(st.total+10)-st.present)):'—';
+      return `<tr>
+        <td class="fw-600">${sub.name}</td>
+        <td><span class="pill pill-blue">${sub.code}</span></td>
+        <td>Sem ${sub.semester||'—'}</td>
+        <td style="color:#34d399">${st.present}</td>
+        <td style="color:#f87171">${st.absent}</td>
+        <td>${st.total}</td>
+        <td><span class="pill ${UI.pctPill(st.pct)}">${st.pct}%</span></td>
+        <td><span class="pill ${st.pct>=75?'pill-green':'pill-red'}">${st.pct>=75?'Eligible':'Shortage'}</span></td>
+        <td style="font-size:11px;color:#64748b">${st.pct<75&&st.total?`Need ~${needed} more`:'—'}</td>
+      </tr>`;
+    }).join('') || '<tr class="empty-row"><td colspan="9">No subject data found</td></tr>';
+  } catch (err) {
+    console.error("Critical rendering error in loadSubjects:", err);
+    document.getElementById('sub-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#f87171">Subject data rendering failed.</td></tr>';
+  }
+}
+
+function renderCalendar() {
+  const all=DATA.getAttendance();
+  document.getElementById('cal-label').textContent=new Date(calYear,calMonth,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const today=new Date().toISOString().split('T')[0];
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  function dayStatus(ds){
+    const d=all[ds]||{}; let p=0,ab=0;
+    Object.values(d).forEach(periods => {
+      Object.values(periods).forEach(records => {
+        if(records[myId] === 'present') p++;
+        else if(records[myId] === 'absent') ab++;
+      });
+    });
+    if(!p&&!ab)return'none';
+    if(ab>p)return'absent'; return'present';
+  }
+
+  let html=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">`;
+  dayNames.forEach(d=>html+=`<div style="text-align:center;font-size:10px;font-weight:700;color:#475569;padding:4px">${d}</div>`);
+  html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+  for(let i=0;i<firstDay;i++) html+=`<div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const status=dayStatus(ds);
+    const isToday=ds===today;
+    const wkDay=new Date(calYear,calMonth,d).getDay();
+    const isWkend=wkDay===0||wkDay===6;
+    let bg='transparent',border='1px solid transparent',dotColor='';
+    if(isWkend) bg='#1e293b';
+    else if(status==='present'){bg='rgba(16,185,129,0.1)';border='1px solid rgba(16,185,129,0.3)';dotColor='#10b981';}
+    else if(status==='absent'){bg='rgba(239,68,68,0.1)';border='1px solid rgba(239,68,68,0.3)';dotColor='#ef4444';}
+    if(isToday){bg='rgba(59,130,246,0.15)';border='1px solid rgba(59,130,246,0.5)';}
+    html+=`<div style="aspect-ratio:1;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:${bg};border:${border}${isWkend?';opacity:0.4':''}">
+      <span style="font-size:12px;font-weight:${isToday?700:400};color:${isToday?'#60a5fa':'#94a3b8'}">${d}</span>
+      ${dotColor?`<div style="width:5px;height:5px;border-radius:50%;background:${dotColor};margin-top:2px"></div>`:''}
+    </div>`;
+  }
+  html+='</div>';
+  document.getElementById('cal-card').innerHTML=html;
+}
+function changeMonth(dir){ calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;}else if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+
+function loadProfile() {
+  const s=DATA.getStudents().find(x=>x.id===myId)||sess;
+  const st=DATA.getStudentStats(myId);
+
+  document.getElementById('profile-info').innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0;border-bottom:1px solid #334155;margin-bottom:16px">
+      <div class="ava ava-lg av-green" style="margin-bottom:12px">${UI.initials(s.name)}</div>
+      <div style="font-size:18px;font-weight:700;color:#f1f5f9">${s.name}</div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px">${s.roll}</div>
+    </div>
+    ${[['Email',s.email||'—'],['Phone',s.phone||'—'],['Department',s.dept],['Year','Year '+s.year],['Semester','Sem '+s.semester]].map(([l,v])=>`
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e2f45">
+        <span style="color:#64748b;font-size:13px">${l}</span>
+        <span style="color:#e2e8f0;font-size:13px;font-weight:500">${v}</span>
+      </div>`).join('')}`;
+
+  document.getElementById('profile-summary').innerHTML=`
+    ${[['Present',st.present,'#34d399'],['Absent',st.absent,'#f87171'],['Total Classes',st.total,'#60a5fa'],['Attendance',st.pct+'%',UI.pctColor(st.pct)]].map(([l,v,c])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#0f172a;border-radius:8px;margin-bottom:8px">
+        <span style="color:#94a3b8;font-size:13px">${l}</span>
+        <span style="color:${c};font-size:18px;font-weight:700">${v}</span>
+      </div>`).join('')}
+    <div class="progress" style="margin:10px 0 6px"><div class="progress-fill" style="width:${st.pct}%;background:${UI.pctColor(st.pct)}"></div></div>`;
+}
+
+function runPrediction() {
+  const future = parseInt(document.getElementById('pred-future').value);
+  if (!future || future < 1) { UI.toast('Enter a valid number','warning'); return; }
+  const sem = document.getElementById('s-filter-sem')?.value || undefined;
+  const st = DATA.getStudentStats(myId, sem);
+  const newTotal = st.total + future;
+  const newPresent = st.present + future;
+  const newPct = Math.round((newPresent / newTotal) * 100);
+  const resEl = document.getElementById('pred-result');
+  const pctEl = document.getElementById('pred-pct');
+  const barEl = document.getElementById('pred-bar');
+  const msgEl = document.getElementById('pred-msg');
+  resEl.classList.remove('hidden');
+  pctEl.textContent = newPct + '%';
+  pctEl.style.color = UI.pctColor(newPct);
+  barEl.style.width = newPct + '%';
+  barEl.style.background = UI.pctColor(newPct);
+  msgEl.innerHTML = newPct >= 75 ? `<span style="color:#10b981">Good.</span> Reach ${newPct}%` : `<span style="color:#ef4444">Shortage.</span> Will reach ${newPct}%`;
+}
+
+function downloadWord() { EXPORT.studentAttendance(myId, 'word'); }
+function downloadExcel() { EXPORT.studentAttendance(myId, 'csv'); }
+function downloadRecent(fmt){ EXPORT.studentAttendance(myId,fmt); }
+
+// ── Init ──
+// window.addEventListener('app_ready', () => { ... handled above now ... });
+</script>
+</body>
+</html>

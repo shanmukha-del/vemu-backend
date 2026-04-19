@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HOD Dashboard – VEMU AMS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dash-wrapper">
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <h2>VEMU INSTITUTE OF TECHNOLOGY</h2>
+      <p>HOD Panel</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="user-ava ava-hod" id="h-ava">H</div>
+      <div class="user-info">
+        <div class="uname" id="h-name">HOD</div>
+        <div class="urole" id="h-dept-lbl">Department Head</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Overview</div>
+      <button class="nav-btn active" data-page="dashboard">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <div class="nav-group-label">My Department</div>
+      <button class="nav-btn" data-page="staff">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>Staff</span>
+      </button>
+      <button class="nav-btn" data-page="students">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 14l9-5-9-5-9 5 9 5z"/></svg>
+        <span>Students</span>
+      </button>
+      <button class="nav-btn" data-page="sections">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <span>Sections</span>
+      </button>
+      <button class="nav-btn" data-page="modify-attendance">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <span>Modify Attendance</span>
+      </button>
+      <div class="nav-group-label">Reports</div>
+      <button class="nav-btn" data-page="reports">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>Attendance Reports</span>
+      </button>
+      <button class="nav-btn" data-page="bulk-promotion">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7h8m0 0l-3-3m3 3l-3 3M8 17H0m0 0l3 3m-3-3l3-3M9 13l3-3 3 3m-3-3v12"/></svg>
+        <span>Bulk Promotion</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-btn" onclick="logout()" style="color:#ef4444">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger-btn" onclick="_toggleSidebar()">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="topbar-title" id="page-title">Dashboard</div>
+          <div class="topbar-date" id="page-date"></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="hamburger-btn" id="theme-toggle" onclick="THEME.toggle()" title="Toggle Theme" style="margin-right:8px">
+          <span id="theme-icon">☀️</span>
+        </button>
+        <button class="mobile-logout" onclick="logout()" title="Logout" style="margin-right:8px">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
+        <span class="pill pill-purple" id="dept-badge"></span>
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:4px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05)">
+          <div style="width:24px; height:24px; border-radius:6px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff">H</div>
+          <span style="font-size:12px; color:#f1f5f9; font-weight:600" id="topbar-name">HOD</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- ═══ DASHBOARD ═══ -->
+      <section class="page-section active" id="sec-dashboard">
+        <div class="stats-grid" id="hod-stats"></div>
+        <div class="grid-2">
+          <div class="card holographic-glass">
+            <div class="card-header"><span class="card-title" style="margin-bottom:0">Attendance Trend (Last 7 Days)</span></div>
+            <div class="bar-chart" id="hod-chart" style="padding-top:6px"></div>
+          </div>
+          <div class="card holographic-glass">
+            <div class="card-header">
+              <div><span class="card-title" style="margin-bottom:0">Faculty Performance</span><p style="font-size:11px;color:var(--text-muted)">Attendance recording efficiency</p></div>
+              <button class="btn btn-ghost btn-xs" onclick="navTo('staff')">Details</button>
+            </div>
+            <div id="staff-efficiency-list"></div>
+          </div>
+        </div>
+
+        <!-- Section Averages -->
+        <div class="card holographic-glass">
+            <div class="card-header">
+               <div><span class="card-title" style="margin-bottom:0">Section Averages</span></div>
+            </div>
+            <div id="sec-overview"></div>
+        </div>
+
+        <div class="card holographic-glass">
+          <div class="card-header">
+            <div><span class="card-title" style="margin-bottom:0">Departmental Risk Analysis</span><p style="font-size:11px;color:var(--text-muted)">Students currently failing the 75% threshold</p></div>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="hod-low-search" class="form-control" placeholder="Search..." style="width:150px;height:32px;font-size:12px" oninput="loadDash()">
+              <button class="btn btn-primary btn-sm" onclick="navTo('reports')">Run Full Diagnostic</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Name</th><th>Roll No</th><th>Year / Sec / Sem</th><th>Attendance</th><th>Status</th></tr></thead>
+            <tbody id="hod-low-table"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ═══ STAFF ═══ -->
+      <section class="page-section" id="sec-staff">
+        <div class="sec-header">
+          <div><h2>Department Staff</h2><p>Manage faculty — set credentials manually</p></div>
+          <button class="btn btn-primary btn-sm" onclick="openStaffModal()">+ Add Staff</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>User ID</th><th>Subjects</th><th>Sections</th><th>Actions</th></tr></thead>
+          <tbody id="hod-staff-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ STUDENTS ═══ -->
+      <section class="page-section" id="sec-students">
+        <div class="sec-header">
+          <div><h2>Students</h2><p>Students login with Roll Number as ID & Password</p></div>
+          <button class="btn btn-primary btn-sm" onclick="openStuModal()">+ Add Student</button>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <input class="form-control" id="stu-search" placeholder="Search name / roll…" style="width:200px" oninput="renderStudents()">
+          <select class="form-control" id="stu-fyear" style="width:110px" onchange="renderStudents()"><option value="">All Years</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+          <select class="form-control" id="stu-fsem" style="width:110px" onchange="renderStudents()"><option value="">All Sem</option><option>1</option><option>2</option></select>
+          <select class="form-control" id="stu-fsec"  style="width:130px" onchange="renderStudents()"><option value="">All Sections</option></select>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Name</th><th>Roll No</th><th>Year / Sec / Sem</th><th>Email</th><th>Attendance</th><th>Actions</th></tr></thead>
+          <tbody id="hod-stu-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ SECTIONS ═══ -->
+      <section class="page-section" id="sec-sections">
+        <div class="sec-header">
+          <div><h2>Sections</h2><p>Sections in my department</p></div>
+          <button class="btn btn-primary btn-sm" onclick="UI.openModal('hodSecModal')">+ Add Section</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Label</th><th>Year</th><th>Sem</th><th>Section</th><th>Students</th><th>Actions</th></tr></thead>
+          <tbody id="hod-sec-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ REPORTS ═══ -->
+      <section class="page-section" id="sec-reports">
+        <div class="sec-header"><div><h2>Attendance Reports</h2><p>Filter and download — my department</p></div></div>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label class="form-label">Year</label>
+            <select class="form-control" id="rep-year" style="width:110px"><option value="">All</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Section</label>
+            <select class="form-control" id="rep-sec" style="width:130px"><option value="">All Sections</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semester</label>
+            <select class="form-control" id="rep-sem" style="width:110px"><option value="">All</option><option>1</option><option>2</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">From Date</label>
+            <input type="date" class="form-control" id="rep-from" style="width:145px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">To Date</label>
+            <input type="date" class="form-control" id="rep-to" style="width:145px">
+          </div>
+          <div class="form-group" style="align-self:flex-end;display:flex;gap:8px;align-items:center">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer;margin-right:4px">
+              <input type="checkbox" id="rep-deep" style="width:14px;height:14px;accent-color:var(--primary)"> Recalculate All
+            </label>
+            <button class="btn btn-primary btn-sm" onclick="renderReports()">Apply Filter</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearFilter()">Clear</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" style="margin-bottom:0" id="rep-count">Results</span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="downloadDetailed('word')">📋 Detailed Word</button>
+              <button class="btn btn-success btn-sm" onclick="downloadRep('word')">⬇ Download Word</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadRep('csv')">⬇ Download CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Roll No</th><th>Name</th><th>Y / S / Sem</th><th>Subject</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th><th>Status</th></tr></thead>
+            <tbody id="rep-tbody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ═══ MODIFY ATTENDANCE ═══ -->
+      <section class="page-section" id="sec-modify-attendance">
+        <div class="sec-header">
+          <div><h2>Modify Attendance</h2><p>Correct student records (HOD Override)</p></div>
+        </div>
+        <div class="filter-bar">
+          <div class="form-row" style="width:100%">
+            <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-control" id="mod-date"></div>
+            <div class="form-group">
+                <label class="form-label">Section</label>
+                <select class="form-control" id="mod-sec"></select>
+            </div>
+          </div>
+          <div class="form-row" style="width:100%; margin-top:10px">
+            <div class="form-group">
+                <label class="form-label">Period</label>
+                <select class="form-control" id="mod-period">
+                    <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option>
+                </select>
+            </div>
+            <div class="form-group" style="align-self:flex-end">
+                <button class="btn btn-primary" style="width:100%" onclick="loadModifyList()">Search Records</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="mod-card" style="display:none">
+          <div class="card-header">
+            <span class="card-title" id="mod-info-title">Student Records</span>
+            <button class="btn btn-success btn-sm" onclick="saveModifications()">Save All Changes</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Roll No</th><th>Student Name</th><th>Attendance</th><th>Actions</th></tr></thead>
+              <tbody id="mod-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ BULK PROMOTION ═══ -->
+      <section class="page-section" id="sec-bulk-promotion">
+        <div class="sec-header">
+          <div><h2>Bulk Promotion Engine</h2><p>Promote students to the next term & reset attendance records</p></div>
+          <button class="btn btn-success" onclick="executeBulkPromotion()">Promote Selected Students</button>
+        </div>
+        <div class="filter-bar">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;width:100%">
+            <select class="form-control" id="promo-fyear" style="width:110px" onchange="renderPromotionList()"><option value="">All Years</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+            <select class="form-control" id="promo-fsem" style="width:110px" onchange="renderPromotionList()"><option value="">All Sem</option><option>1</option><option>2</option></select>
+            <select class="form-control" id="promo-fsec"  style="width:130px" onchange="renderPromotionList()"><option value="">All Sections</option></select>
+            <span style="flex:1"></span>
+            <div class="alert alert-info" style="margin:0;padding:6px 12px;font-size:12px;border:none;background:rgba(59,130,246,0.1)">
+              Attendance records will be wiped for promoted students.
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px"><input type="checkbox" id="promo-master-cb" onclick="togglePromoAll(this.checked)"></th>
+                  <th>Roll No</th>
+                  <th>Name</th>
+                  <th>Current Status</th>
+                  <th>Next Step</th>
+                </tr>
+              </thead>
+              <tbody id="promo-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div class="chairman-branding reveal-5">
+        <div class="chairman-name">Dr. K. Chandrashekhar Naidu</div>
+        <div class="chairman-title">Hon'ble Chairman – VEMU Group</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Staff Modal -->
+<div class="modal-backdrop" id="staffModal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="staff-mtitle">Add Staff</h3><button class="modal-close" onclick="UI.closeModal('staffModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="staff-eid">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="staff-name"></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="staff-email" type="email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">User ID <span style="color:#ef4444">*</span></label>
+          <input class="form-control" id="staff-uid" placeholder="Set login username">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password <span style="color:#ef4444">*</span></label>
+          <input class="form-control" id="staff-pwd" type="password" placeholder="Set password">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="staff-phone"></div>
+        <div class="form-group"><label class="form-label">Subjects (comma separated)</label><input class="form-control" id="staff-subjects"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Assigned Sections</label>
+        <div id="staff-sec-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></div>
+      </div>
+      <div class="alert alert-info">The User ID and Password you set here will be shared with the staff member for login.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="UI.closeModal('staffModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveStaff()">Save Staff</button>
+    </div>
+  </div>
+</div>
+
+<!-- Student Modal -->
+<div class="modal-backdrop" id="stuModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="stu-mtitle">Add Student</h3><button class="modal-close" onclick="UI.closeModal('stuModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="stu-eid">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Full Name</label><input class="form-control" id="stu-name"></div>
+        <div class="form-group"><label class="form-label">Roll Number</label><input class="form-control" id="stu-roll" placeholder="21CSE001"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Year</label><select class="form-control" id="stu-year"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="form-group"><label class="form-label">Semester</label><select class="form-control" id="stu-sem"><option>1</option><option>2</option></select></div>
+        <div class="form-group"><label class="form-label">Section</label><select class="form-control" id="stu-sec"></select></div>
+        <div class="form-group"><label class="form-label">Student Type</label><select class="form-control" id="stu-type"><option value="Regular">Regular</option><option value="LE">Lateral Entry (LE)</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="stu-email" type="email"></div>
+        <div class="form-group"><label class="form-label">Phone</label><input class="form-control" id="stu-phone"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Date of Birth</label><input class="form-control" id="stu-dob" type="date" style="width:180px"></div>
+      <div class="alert alert-info">Student logs in using Roll Number as both their ID and Password.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="UI.closeModal('stuModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveStu()">Save Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- Section Modal -->
+<div class="modal-backdrop" id="hodSecModal">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>Add Section</h3><button class="modal-close" onclick="UI.closeModal('hodSecModal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Year</label><select class="form-control" id="sec-year"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="form-group"><label class="form-label">Semester</label><select class="form-control" id="sec-sem"><option>1</option><option>2</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Section Letter</label><input class="form-control" id="sec-letter" placeholder="A" maxlength="2"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="UI.closeModal('hodSecModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSec()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="app.js"></script>
+<script>
+const sess = UI.requireAuth('hod');
+let myDept = '';
+
+if (sess) {
+  myDept = sess.dept;
+  document.getElementById('h-name').textContent     = sess.name;
+  document.getElementById('h-ava').textContent      = UI.initials(sess.name);
+  document.getElementById('h-dept-lbl').textContent = 'HOD — ' + myDept;
+  document.getElementById('dept-badge').textContent = myDept;
+  document.getElementById('topbar-name').textContent= sess.name;
+  document.getElementById('page-date').textContent  = new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+
+// ── Nav ──
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+page)?.classList.add('active');
+  document.getElementById('page-title').textContent = document.querySelector(`[data-page="${page}"] span`)?.textContent||page;
+  ({dashboard:loadDash,staff:renderStaff,students:renderStudents,sections:renderSections,reports:initReports, 'modify-attendance':initModifyAtt, 'bulk-promotion': initPromotion})[page]?.();
+}
+document.querySelectorAll('.nav-btn[data-page]').forEach(b=>b.addEventListener('click',()=>navTo(b.dataset.page)));
+
+function viewStudent(sid) {
+  window.location.href = `student.html?viewAs=${sid}`;
+}
+
+// ═══════════════ DASHBOARD ═══════════════
+function loadDash() {
+  const students = DATA.getStudents({ dept: myDept });
+  const staff    = DATA.getTeachers(myDept);
+  const secs     = DATA.getSections(myDept);
+  const low      = students.filter(s => DATA.getStudentStats(s.id).pct < 75);
+  const avg      = students.length ? Math.round(students.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/students.length) : 0;
+  const now      = new Date();
+  const mName    = now.toLocaleString('en-IN', { month: 'long' });
+  const avgM     = students.length ? Math.round(students.reduce((a,s)=>a+DATA.getStudentMonthlyStats(s.id, now.getFullYear(), now.getMonth()).pct,0)/students.length) : 0;
+  const qStr     = (document.getElementById('hod-low-search')?.value || '').toLowerCase();
+
+  document.getElementById('hod-stats').innerHTML = `
+    <div class="stat-card cyan reveal-1"><div class="stat-val" id="h-val-students">0</div><div class="stat-lbl">Total Students</div></div>
+    <div class="stat-card purple reveal-2"><div class="stat-val" id="h-val-m-avg">0</div><div class="stat-lbl">Avg. in ${mName}</div><div class="stat-sub">Department trend</div></div>
+    <div class="stat-card cyan reveal-3"><div class="stat-val" id="h-val-staff">0</div><div class="stat-lbl">Staff Members</div></div>
+    <div class="stat-card red reveal-4"><div class="stat-val" id="h-val-low">0</div><div class="stat-lbl">Below 75%</div></div>
+    <div class="stat-card ${avg>=75?'green':'red'} reveal-5"><div class="stat-val" id="h-val-avg">0</div><div class="stat-lbl">Overall Avg.</div></div>`;
+
+  setTimeout(() => {
+    UI.animateValue('h-val-students', 0, students.length, 800);
+    UI.animateValue('h-val-m-avg', 0, avgM, 800);
+    const mAvgDisp = document.getElementById('h-val-m-avg'); if(mAvgDisp) mAvgDisp.dataset.suffix = '%';
+    UI.animateValue('h-val-staff', 0, staff.length, 800);
+    UI.animateValue('h-val-low', 0, low.length, 800);
+    UI.animateValue('h-val-avg', 0, avg, 800);
+    const avgDisp = document.getElementById('h-val-avg'); if(avgDisp) avgDisp.dataset.suffix = '%';
+    UI.revealSequential('.stat-card');
+  }, 100);
+
+  UI.drawLineChart('hod-chart', DATA.getWeeklyTrend(null, null, myDept));
+
+  document.getElementById('sec-overview').innerHTML = secs.length ? secs.map((s, i) => {
+    const ss=students.filter(x=>x.year===s.year&&x.section===s.section&&x.semester===s.semester);
+    const a=ss.length?Math.round(ss.reduce((t,x)=>t+DATA.getStudentStats(x.id).pct,0)/ss.length):0;
+    return `<div class="reveal-${(i%5)+1}" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--glass-border)">
+      <div><div style="font-size:13px;font-weight:600;color:var(--text-main)">${s.label}</div><div style="font-size:11px;color:var(--text-muted)">${ss.length} students</div></div>
+      <span class="pill ${UI.pctPill(a)}">${a}%</span></div>`;
+  }).join('') : '<p class="text-muted" style="font-size:13px">No sections found</p>';
+
+  document.getElementById('hod-low-table').innerHTML = low.length
+    ? low.filter(s=>!qStr || s.name.toLowerCase().includes(qStr) || s.roll.toLowerCase().includes(qStr)).map((s, i) => {
+      const p=DATA.getStudentStats(s.id).pct;
+      const diff=Math.ceil((0.75*(DATA.getStudentStats(s.id).total+10)-DATA.getStudentStats(s.id).present));
+      return`<tr class="reveal-${(i%5)+1} clickable-row" onclick="viewStudent('${s.id}')"><td class="fw-600">${s.name}</td><td class="text-muted">${s.roll}</td><td>Y${s.year}/S${s.section}/Sem${s.semester||'—'}</td><td><span class="pill pill-red">${p}%</span></td><td><span style="font-size:11px;color:var(--text-dim)">Attend ~${Math.max(0,diff)} more</span></td></tr>`;}).join('')
+    : '<tr class="empty-row"><td colspan="5">No students below 75%</td></tr>';
+
+  document.getElementById('staff-efficiency-list').innerHTML = staff.map((t, i)=>{
+    const assignedSecs = t.sections || [];
+    return `<div class="reveal-${(i%5)+1}" style="padding:10px 0;border-bottom:1px solid var(--glass-border);display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-size:13px;font-weight:600;color:var(--text-main)">${t.name}</div><div style="font-size:11px;color:var(--text-muted)">${assignedSecs.length} assigned sections</div></div>
+      <span class="pill pill-blue">${(t.subjects||[]).length} Subjects</span>
+    </div>`;
+  }).join('');
+
+  UI.revealSequential('.card', 150);
+}
+
+// ═══════════════ STAFF ═══════════════
+function renderStaff() {
+  const list = DATA.getTeachers(myDept);
+  document.getElementById('hod-staff-tbody').innerHTML = list.length
+    ? list.map(t=>`<tr><td class="fw-600">${t.name}</td><td style="color:#60a5fa">${t.userId}</td><td class="text-muted">${(t.subjects||[]).join(', ')}</td><td class="text-muted">${(t.sections||[]).join(', ')}</td><td><button class="btn btn-ghost btn-xs" onclick="editStaff('${t.id}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="delStaff('${t.id}')">Del</button></td></tr>`)
+      .join('')
+    : '<tr class="empty-row"><td colspan="5">No staff in your department</td></tr>';
+}
+
+function openStaffModal() {
+  document.getElementById('staff-eid').value = '';
+  document.getElementById('staff-mtitle').textContent = 'Add Staff';
+  ['staff-name','staff-uid','staff-email','staff-phone','staff-subjects'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('staff-pwd').value = '';
+  loadStaffSecs();
+  UI.openModal('staffModal');
+}
+function editStaff(id) {
+  const t=DATA.getTeachers().find(x=>x.id===id); if(!t) return;
+  document.getElementById('staff-eid').value=id;
+  document.getElementById('staff-mtitle').textContent='Edit Staff';
+  document.getElementById('staff-name').value=t.name;
+  document.getElementById('staff-uid').value=t.userId;
+  document.getElementById('staff-email').value=t.email||'';
+  document.getElementById('staff-phone').value=t.phone||'';
+  document.getElementById('staff-subjects').value=(t.subjects||[]).join(', ');
+  document.getElementById('staff-pwd').value='';
+  loadStaffSecs(t.sections||[]);
+  UI.openModal('staffModal');
+}
+function loadStaffSecs(checked=[]) {
+  const secs = DATA.getSections(myDept);
+  document.getElementById('staff-sec-checks').innerHTML = secs.length
+    ? secs.map(s=>`<label style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;border:1px solid #334155;font-size:12px;color:var(--text-dim);background:#0f172a;cursor:pointer"><input type="checkbox" value="${s.label}" ${checked.includes(s.label)?'checked':''} style="accent-color:#3b82f6"> ${s.label}</label>`).join('')
+    : '<span style="color:var(--text-muted);font-size:12px">No sections in your department yet</span>';
+}
+async function saveStaff() {
+  const id  = document.getElementById('staff-eid').value;
+  const secs= [...document.querySelectorAll('#staff-sec-checks input:checked')].map(i=>i.value);
+  const obj = {
+    name:    document.getElementById('staff-name').value.trim(),
+    userId:  document.getElementById('staff-uid').value.trim(),
+    dept:    myDept,
+    email:   document.getElementById('staff-email').value.trim(),
+    phone:   document.getElementById('staff-phone').value.trim(),
+    subjects:document.getElementById('staff-subjects').value.split(',').map(s=>s.trim()).filter(Boolean),
+    sections:secs, active:true,
+    joinDate:new Date().toISOString().split('T')[0]
+  };
+  const pwd = document.getElementById('staff-pwd').value;
+  if (!obj.name||!obj.userId) { UI.toast('Name and User ID required','error'); return; }
+  if (id) {
+    if (pwd) obj.password=pwd;
+    await DATA.updateTeacher(id, obj);
+  } else {
+    if (!pwd) { UI.toast('Password required for new staff','error'); return; }
+    await DATA.addTeacher({id:DATA.newId('T'), ...obj, password:pwd});
+  }
+  UI.closeModal('staffModal'); renderStaff(); UI.toast('Staff saved');
+}
+async function delStaff(id) {
+  if (!await UI.confirm('Delete this staff member?')) return;
+  await DATA.deleteTeacher(id); renderStaff(); UI.toast('Deleted','warning');
+}
+
+// ═══════════════ STUDENTS ═══════════════
+function renderStudents() {
+    const q = (document.getElementById('stu-search')?.value || '').toLowerCase();
+    const yf = document.getElementById('stu-fyear')?.value;
+    const sfm = document.getElementById('stu-fsem')?.value;
+    const sf = document.getElementById('stu-fsec')?.value;
+    let list = DATA.getStudents({ dept: myDept, year: yf || undefined, semester: sfm || undefined, section: sf || undefined });
+    if (q) list = list.filter(s => s.name.toLowerCase().includes(q) || s.roll.toLowerCase().includes(q));
+
+    const row = s => {
+        const p = DATA.getStudentStats(s.id).pct;
+        return `<tr class="clickable-row" onclick="viewStudent('${s.id}')"><td class="fw-600 text-primary">${s.name}</td><td class="text-muted">${s.roll}</td><td>Y${s.year}/S${s.section}/Sem${s.semester || '—'}</td><td class="text-muted">${s.email || '—'}</td><td><span class="pill ${UI.pctPill(p)}">${p}%</span></td><td><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); editStu('${s.id}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); delStu('${s.id}')">Del</button></td></tr>`;
+    };
+
+    const regular = list.filter(s => (s.studentType || 'Regular') === 'Regular');
+    const le = list.filter(s => s.studentType === 'LE');
+
+    let html = '';
+    if (regular.length) html += `<tr class="table-group-header"><td colspan="6">Regular Students (${regular.length})</td></tr>` + regular.map(row).join('');
+    if (le.length) html += `<tr class="table-group-header"><td colspan="6">Lateral Entry Students (LE) (${le.length})</td></tr>` + le.map(row).join('');
+
+    document.getElementById('hod-stu-tbody').innerHTML = html || '<tr class="empty-row"><td colspan="6">No students found</td></tr>';
+}
+function openStuModal() {
+  document.getElementById('stu-eid').value='';
+  document.getElementById('stu-mtitle').textContent='Add Student';
+  ['stu-name','stu-roll','stu-email','stu-phone','stu-dob'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('stu-type').value='Regular';
+  UI.openModal('stuModal');
+}
+function editStu(id) {
+  const s=DATA.getStudents().find(x=>x.id===id); if(!s) return;
+  document.getElementById('stu-eid').value=id;
+  document.getElementById('stu-mtitle').textContent='Edit Student';
+  document.getElementById('stu-name').value=s.name;
+  document.getElementById('stu-roll').value=s.roll;
+  document.getElementById('stu-email').value=s.email||'';
+  document.getElementById('stu-phone').value=s.phone||'';
+  document.getElementById('stu-dob').value=s.dob||'';
+  document.getElementById('stu-year').value=s.year;
+  document.getElementById('stu-sem').value=s.semester||'1';
+  document.getElementById('stu-sec').value=s.section;
+  document.getElementById('stu-type').value=s.studentType||'Regular';
+  UI.openModal('stuModal');
+}
+async function saveStu() {
+  const id = document.getElementById('stu-eid').value;
+  const obj={name:document.getElementById('stu-name').value.trim(), roll:document.getElementById('stu-roll').value.trim().toUpperCase(), dept:myDept, year:document.getElementById('stu-year').value, semester:document.getElementById('stu-sem').value, section:document.getElementById('stu-sec').value, email:document.getElementById('stu-email').value.trim(), phone:document.getElementById('stu-phone').value.trim(), dob:document.getElementById('stu-dob').value, studentType:document.getElementById('stu-type').value};
+  if (!obj.name||!obj.roll) { UI.toast('Name and Roll Number required','error'); return; }
+  if (id) await DATA.updateStudent(id,obj);
+  else await DATA.addStudent({id:DATA.newId('STU'),...obj});
+  UI.closeModal('stuModal'); renderStudents(); UI.toast('Saved');
+}
+async function delStu(id) {
+  if (!await UI.confirm('Delete this student?')) return;
+  await DATA.deleteStudent(id); renderStudents(); UI.toast('Deleted','warning');
+}
+
+// ═══════════════ SECTIONS ═══════════════
+function renderSections() {
+  const list=DATA.getSections(myDept);
+  const stus=DATA.getStudents({dept:myDept});
+  document.getElementById('hod-sec-tbody').innerHTML=list.length
+    ? list.map(s=>{const cnt=stus.filter(x=>x.year===s.year&&x.section===s.section&&x.semester===s.semester).length;return`<tr><td class="fw-600" style="color:#60a5fa">${s.label}</td><td>Year ${s.year}</td><td>Sem ${s.semester}</td><td>${s.section}</td><td>${cnt}</td><td><button class="btn btn-danger btn-xs" onclick="delSec('${s.id}')">Delete</button></td></tr>`;}).join('')
+    : '<tr class="empty-row"><td colspan="6">No sections yet</td></tr>';
+}
+async function saveSec() {
+  const year=document.getElementById('sec-year').value;
+  const sem=document.getElementById('sec-sem').value;
+  const sec =document.getElementById('sec-letter').value.trim().toUpperCase();
+  if (!sec) { UI.toast('Enter a section letter','error'); return; }
+  const ex=(DATA.getSections()).find(s=>s.dept===myDept&&s.year===year&&s.semester===sem&&s.section===sec);
+  if (ex) { UI.toast('Section already exists','error'); return; }
+  await DATA.addSection({id:DATA.newId('SEC'),dept:myDept,year,semester:sem,section:sec,label:`${myDept}-${year}${sec}-S${sem}`});
+  UI.closeModal('hodSecModal'); renderSections(); UI.toast('Section added');
+}
+async function delSec(id) {
+  if (!await UI.confirm('Delete this section?')) return;
+  await DATA.deleteSection(id); renderSections(); UI.toast('Deleted','warning');
+}
+
+// ═══════════════ REPORTS ═══════════════
+function initReports() {
+  const today=new Date().toISOString().split('T')[0];
+  const from=new Date(); from.setDate(from.getDate()-30);
+  document.getElementById('rep-from').value=from.toISOString().split('T')[0];
+  document.getElementById('rep-to').value=today;
+  renderReports();
+}
+function clearFilter() {
+  ['rep-year','rep-sec','rep-sem'].forEach(i=>document.getElementById(i).value='');
+  initReports();
+}
+async function renderReports() {
+  const isDeep = document.getElementById('rep-deep')?.checked || false;
+  const f={dept:myDept, year:document.getElementById('rep-year').value||undefined, section:document.getElementById('rep-sec').value||undefined, semester:document.getElementById('rep-sem').value||undefined, from:document.getElementById('rep-from').value||undefined, to:document.getElementById('rep-to').value||undefined};
+  const tbody = document.getElementById('rep-tbody');
+  tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">${isDeep ? 'Deep Recalculating Data...' : 'Generating Department Report...'}</p></td></tr>`;
+  
+  const data = await DATA.getFilteredAttendance(f, isDeep);
+  
+  if (isDeep) {
+    document.getElementById('rep-deep').checked = false;
+    UI.toast('Deep refresh completed','success');
+  }
+  
+  const regular = data.filter(r => (r.student.studentType || 'Regular') === 'Regular');
+  const le = data.filter(r => r.student.studentType === 'LE');
+
+  const row = r => `<tr><td class="text-muted">${r.student.roll}</td><td class="fw-600">${r.student.name}</td><td>Y${r.student.year}/S${r.student.section}/Sem${r.student.semester||'—'}</td><td>${r.subject.name}</td><td style="color:#34d399">${r.present}</td><td style="color:#f87171">${r.absent}</td><td>${r.total}</td><td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td><td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'Eligible':'Shortage'}</span></td></tr>`;
+
+  let html = '';
+  if (regular.length) html += `<tr class="table-group-header"><td colspan="9">Regular Students (${regular.length})</td></tr>` + regular.map(row).join('');
+  if (le.length) html += `<tr class="table-group-header"><td colspan="9">Lateral Entry Students (LE) (${le.length})</td></tr>` + le.map(row).join('');
+
+  document.getElementById('rep-count').textContent=`${data.length} records`;
+  tbody.innerHTML = html || '<tr class="empty-row"><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted)">No attendance recorded for this criteria.</td></tr>';
+}
+function downloadRep(fmt) {
+  const f={dept:myDept, year:document.getElementById('rep-year').value||undefined, section:document.getElementById('rep-sec').value||undefined, semester:document.getElementById('rep-sem').value||undefined, from:document.getElementById('rep-from').value||undefined, to:document.getElementById('rep-to').value||undefined};
+  EXPORT.filteredReport(f,fmt);
+}
+function downloadDetailed(fmt) {
+  const f={dept:myDept, year:document.getElementById('rep-year').value||undefined, section:document.getElementById('rep-sec').value||undefined, semester:document.getElementById('rep-sem').value||undefined, from:document.getElementById('rep-from').value||undefined, to:document.getElementById('rep-to').value||undefined};
+  EXPORT.detailedReport(f,fmt);
+}
+
+// ═══════════════ MODIFY ATTENDANCE ═══════════════
+function initModifyAtt() {
+  const secs = DATA.getSections(myDept);
+  document.getElementById('mod-sec').innerHTML = secs.map(s => `<option value="${s.label}">${s.label}</option>`).join('');
+  document.getElementById('mod-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mod-card').style.display = 'none';
+}
+
+let currentModRecords = {};
+async function loadModifyList() {
+  const date = document.getElementById('mod-date').value;
+  const section = document.getElementById('mod-sec').value;
+  const period = document.getElementById('mod-period').value;
+  
+  // Find students in this section
+  const sectionObj = DATA.getSections().find(s => s.label === section);
+  if (!sectionObj) return;
+  const students = DATA.getStudents({ dept: myDept, year: sectionObj.year, section: sectionObj.section, semester: sectionObj.semester });
+  
+  // Find existing attendance
+  const allAtt = DATA.getAttendance();
+  let existingRecords = {};
+  
+  // We need to find the record that matches date/section/period
+  // The API returns attendance by date -> subjectId -> period
+  // But we need it by date -> section -> period (which isn't how it's stored in the cache currently)
+  // Let's manually find it from the cache
+  const dayRecords = allAtt[date] || {};
+  let found = false;
+  Object.values(dayRecords).forEach(subPeriods => {
+     if (subPeriods[period]) {
+        // We also need to check if the section matches. 
+        // The cache structure from server.js for /api/attendance doesn't include section in the keys.
+        // Let's re-fetch specifically or just use what we have if we assuming 1 subject per section per period.
+        // Actually the server.js path /api/attendance-locks uses section in key. 
+        // But /api/attendance doesn't.
+        // Let's trust the current session's student list and try to find their statuses.
+        students.forEach(s => {
+          if (subPeriods[period][s.id]) {
+            existingRecords[s.id] = subPeriods[period][s.id];
+            found = true;
+          }
+        });
+     }
+  });
+
+  currentModRecords = existingRecords;
+  const rows = students.map(s => {
+    const status = currentModRecords[s.id] || 'absent';
+    return `<tr>
+      <td>${s.roll}</td>
+      <td class="fw-600">${s.name}</td>
+      <td><span class="pill ${status === 'present' ? 'pill-green' : 'pill-red'}" id="mod-pill-${s.id}">${status.toUpperCase()}</span></td>
+      <td>
+        <div class="att-toggle">
+          <button class="att-btn ${status === 'present' ? 'p-active' : ''}" onclick="setModStatus('${s.id}', 'present')">P</button>
+          <button class="att-btn ${status === 'absent' ? 'a-active' : ''}" onclick="setModStatus('${s.id}', 'absent')">A</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  
+  document.getElementById('mod-tbody').innerHTML = rows;
+
+  if (students.length === 0) {
+    document.getElementById('mod-tbody').innerHTML = `<tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px">No students found for this section. Please ensure students are assigned to this Year/Sec/Sem in the "Students" tab.</td></tr>`;
+  } else if (!found) {
+    UI.toast(`No matching attendance found for Period ${period}. Displaying student list with default 'Absent'.`, 'info');
+  }
+  
+  document.getElementById('mod-card').style.display = 'block';
+  document.getElementById('mod-info-title').textContent = `Records for ${section} - Period ${period}`;
+}
+
+function setModStatus(sid, status) {
+  currentModRecords[sid] = status;
+  const pill = document.getElementById(`mod-pill-${sid}`);
+  pill.className = `pill ${status === 'present' ? 'pill-green' : 'pill-red'}`;
+  pill.textContent = status.toUpperCase();
+  
+  // Update button states in that row
+  const row = pill.closest('tr');
+  row.querySelectorAll('.att-btn').forEach(b => {
+    b.classList.remove('p-active', 'a-active');
+    if (status === 'present' && b.textContent === 'P') b.classList.add('p-active');
+    if (status === 'absent' && b.textContent === 'A') b.classList.add('a-active');
+  });
+}
+
+async function saveModifications() {
+  const date = document.getElementById('mod-date').value;
+  const section = document.getElementById('mod-sec').value;
+  const period = document.getElementById('mod-period').value;
+  
+  UI.toast('Saving changes...', 'info');
+  const ok = await DATA.updateAttendance(date, section, period, currentModRecords);
+  if (ok) UI.toast('Records updated successfully', 'success');
+  else UI.toast('Failed to update records', 'error');
+}
+
+// ═══════════════ BULK PROMOTION ═══════════════
+function initPromotion() {
+  UI.populateSectionLetterSelect(['promo-fsec'], 'All Sections', myDept);
+  renderPromotionList();
+}
+
+function calculateNextTerm(year, sem) {
+  const y = parseInt(year);
+  const s = sem ? sem.toString().trim() : "";
+  if (s === 'Sem 1' || s === 'Sem1' || s === '1') return { nextYear: y.toString(), nextSem: '2' };
+  if (s === 'Sem 2' || s === 'Sem2' || s === '2') {
+    if (y >= 4) return { nextYear: 'Alumni', nextSem: 'Graduated' };
+    return { nextYear: (y + 1).toString(), nextSem: '1' };
+  }
+  return { nextYear: year, nextSem: sem };
+}
+
+function renderPromotionList() {
+  const yf = document.getElementById('promo-fyear')?.value;
+  const sfm = document.getElementById('promo-fsem')?.value;
+  const sf = document.getElementById('promo-fsec')?.value;
+  let list = DATA.getStudents({ dept: myDept, year: yf || undefined, semester: sfm || undefined, section: sf || undefined });
+  
+  const tbody = document.getElementById('promo-tbody');
+  if(!tbody) return;
+
+  tbody.innerHTML = list.length ? list.map(s => {
+    const next = calculateNextTerm(s.year, s.semester);
+    return `<tr>
+      <td><input type="checkbox" class="promo-cb" value="${s.id}"></td>
+      <td class="text-muted">${s.roll}</td>
+      <td class="fw-600">${s.name}</td>
+      <td><span class="pill pill-blue">Year ${s.year} (Sem ${s.semester})</span></td>
+      <td><span class="pill ${next.nextYear === 'Alumni' ? 'pill-purple' : 'pill-green'}">Next: Y${next.nextYear} (S${next.nextSem})</span></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">No students matching criteria</td></tr>';
+  
+  document.getElementById('promo-master-cb').checked = false;
+}
+
+function togglePromoAll(checked) {
+  document.querySelectorAll('.promo-cb').forEach(cb => cb.checked = checked);
+}
+
+async function executeBulkPromotion() {
+  const ids = [...document.querySelectorAll('.promo-cb:checked')].map(cb => cb.value);
+  if(!ids.length) {
+    UI.toast('Select at least one student to promote', 'error');
+    return;
+  }
+
+  const confirmed = await UI.confirm(`Promote ${ids.length} students? This will update their year/semester and DELETE all their current attendance records permanently.`, 'Bulk Promotion Engine');
+  if(!confirmed) return;
+
+  UI.toast('Initializing Promotion Engine...', 'info');
+  
+  try {
+    const success = await DATA.bulkPromote(ids);
+
+    if(success) {
+        UI.toast('BINGO! Bulk Promotion Successful. System is now updated.', 'success');
+        setTimeout(() => {
+          window.location.reload(); 
+        }, 1500);
+    } else {
+      UI.toast('Promotion failed. See console for details.', 'error');
+    }
+  } catch (err) {
+    UI.toast('Network error during promotion', 'error');
+  }
+}
+
+// ── Init ──
+window.addEventListener('app_ready', () => {
+    // Populate dynamic dropdowns after data is ready
+    UI.populateSectionLetterSelect(['stu-fsec', 'rep-sec'], 'All Sections', myDept);
+    UI.populateSectionLetterSelect(['stu-sec'], 'Select Section', myDept);
+    loadDash();
+});
+
+// Sync UI when data changes
+window.addEventListener('vemu_data_changed', () => {
+    renderSections();
+    UI.populateSectionLetterSelect(['stu-fsec', 'rep-sec'], 'All Sections', myDept);
+    UI.populateSectionLetterSelect(['stu-sec'], 'Select Section', myDept);
+    if (document.getElementById('sec-modify-attendance').classList.contains('active')) {
+        initModifyAtt();
+    }
+});
+</script>
+</body>
+</html>

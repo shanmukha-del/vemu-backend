@@ -3,13 +3,28 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+
+// 0. Middleware & CORS (Top Priority)
 app.use(cors({
-    origin: ['https://vemuams.netlify.app', 'http://localhost:5000', 'http://127.0.0.1:5503', 'http://127.0.0.1:5500', 'http://localhost:3000'],
+    origin: [
+        'https://vemuams.netlify.app',
+        'http://localhost:5000',
+        'http://127.0.0.1:5503',
+        'http://127.0.0.1:5500',
+        'http://localhost:3000',
+        'http://localhost:5173'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 app.use(express.json());
+
+// 0.1 Health Check (For Monitoring & Wakeup)
+app.get('/api/health', (req, res) => {
+    res.json({ status: "online", timestamp: new Date().toISOString() });
+});
+
 
 // 1. Database Connection Logic
 const PORT = process.env.PORT || 3000; 
@@ -160,6 +175,23 @@ app.post('/api/attendance/save', async (req, res) => {
         );
         res.json({ success: true, data: result });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+app.get('/api/attendance-locks', async (req, res) => {
+    try { res.json({ success: true, data: await Lock.find().lean() }); }
+    catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+app.post('/api/admin/clear-attendance', async (req, res) => {
+    try {
+        const { year, semester, dept } = req.body;
+        const sections = await Section.find({ year, semester, dept });
+        const labels = sections.map(s => s.label);
+        await Attendance.deleteMany({ section: { $in: labels } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
 app.get('/api/reports', async (req, res) => {
