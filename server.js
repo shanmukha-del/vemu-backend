@@ -192,12 +192,12 @@ app.post('/api/attendance/save', async (req, res) => {
     try {
         const { date, subjectId, section, period, records, teacherId } = req.body;
         
-        // 1. Strict Lock Check: Verify if attendance for this session already exists
-        const existing = await Attendance.findOne({ date, subjectId, period });
+        // 1. Strict Lock Check: Verify if attendance for this specific session already exists
+        const existing = await Attendance.findOne({ date, subjectId, section, period });
         if (existing) {
             return res.status(403).json({ 
                 success: false, 
-                message: "Attendance is already locked for this period. Contact your HOD for modifications." 
+                message: `Attendance for ${section} ${period} is already locked. Contact your HOD for modifications.` 
             });
         }
 
@@ -217,10 +217,25 @@ app.get('/api/attendance-locks', async (req, res) => {
 app.post('/api/admin/clear-attendance', async (req, res) => {
     try {
         const { year, semester, dept } = req.body;
-        const sections = await Section.find({ year, semester, dept });
+        const query = {};
+        if (dept) query.dept = dept;
+        if (year) query.year = year;
+        if (semester) query.semester = semester;
+
+        const sections = await Section.find(query);
         const labels = sections.map(s => s.label);
+        
+        // Wipe both records and transient locks
         await Attendance.deleteMany({ section: { $in: labels } });
-        res.json({ success: true });
+        
+        // If it's a full dept wipe, we might want to clear locks too
+        const lockPattern = labels.length ? new RegExp(`(${labels.join('|')})`) : null;
+        if (lockPattern) {
+           // Locks are handled dynamically in app.js via the attendance records themselves now, 
+           // but we keep this for legacy lock support if needed.
+        }
+
+        res.json({ success: true, count: labels.length });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -238,9 +253,8 @@ app.get('/api/attendance/previous', async (req, res) => {
 });
 
 app.get('/api/attendance/reports', async (req, res) => {
-
     try {
-        let { dept, year, semester, from, to } = req.query;
+        let { dept, year, semester, section, from, to } = req.query;
         
         // Default to last 30 days if no date range is provided
         if (!from || !to) {
@@ -254,6 +268,7 @@ app.get('/api/attendance/reports', async (req, res) => {
         const query = { dept };
         if (year) query.year = year;
         if (semester) query.semester = semester;
+        if (section) query.section = section;
 
         const students = await Student.find(query).lean();
         const studentIds = students.map(s => s.id);

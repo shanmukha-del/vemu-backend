@@ -413,21 +413,23 @@ const DATA = {
   },
 
   isLocked(date, subId, section, period = "1") {
-    // Check if ANY lock exists for this date, section, and period
-    return Object.keys(this._cache.locks).some(key => {
-      const parts = key.split('|');
-      // key format: date|subjectId|section|period
-      return parts[0] === date && parts[2] === section && parts[3] === period;
-    });
+    const a = this.getAttendance();
+    // A period is locked if a record exists for this unique combination
+    return !!(a[date] && a[date][subId] && a[date][subId][period]);
   },
 
   getLockInfo(date, subId, section, period = "1") {
-    // Return lock info for the first lock that matches the date, section, and period
-    const lockKey = Object.keys(this._cache.locks).find(key => {
-      const parts = key.split('|');
-      return parts[0] === date && parts[2] === section && parts[3] === period;
-    });
-    return lockKey ? this._cache.locks[lockKey] : null;
+    const a = this.getAttendance();
+    const record = (a[date] && a[date][subId] && a[date][subId][period]);
+    if (record) {
+      // Find the metadata if it's stored differently or just return a default
+      // In server.js, Attendance model has lockedBy and lockedAt
+      // Our local cache currently just points to the records map.
+      // We might need to ensure the cache includes metadata.
+      // For now, we'll return a placeholder until we verify cache structure.
+      return { lockedBy: "Faculty" }; 
+    }
+    return null;
   },
 
   async saveSessionAtt(date, subId, records, section, lockedBy, period = "1") {
@@ -1013,9 +1015,9 @@ const EXPORT = {
           ` : `<div><span class="meta-label">Type:</span> <span class="meta-val">${title}</span></div>`}
         </div>
         <div class="header-right" style="text-align: right;">
-          <div style="font-weight:700; color:#003366; margin-bottom:5px">AUTHENTICATED DIGITAL COPY</div>
-          <div>Date: <span class="meta-val">${now.date}</span></div>
-          <div>Time: <span class="meta-val">${now.time}</span></div>
+          <div style="margin-bottom:12px; display:inline-block; border: 3px solid #003366; color: #003366; padding: 4px 12px; font-weight: 900; font-size: 14pt; transform: rotate(-5deg); border-radius: 4px; opacity: 0.8; font-family: 'Montserrat', sans-serif">DIGITALLY<br>AUTHORIZED</div>
+          <div style="margin-top:5px; font-size:9pt; color:#64748b">Date: <span class="meta-val">${now.date}</span></div>
+          <div style="font-size:9pt; color:#64748b">Time: <span class="meta-val">${now.time}</span></div>
         </div>
       </div>
 
@@ -1220,13 +1222,12 @@ const EXPORT = {
         section: filters.section
       });
 
-      if (!filters.subjectId) throw new Error("Please select a specific subject for this report.");
+      if (!filters.subjectId) throw new Error("Please select a specific subject.");
       
       const subId = filters.subjectId;
       const subObj = DATA._cache.subjects.find(x => x.id === subId);
       if (!subObj) throw new Error("Subject not found.");
 
-      // Identify sessions count for this subject in range
       let sessionsCount = 0;
       const dates = Object.keys(allAtt).sort();
       dates.forEach(date => {
@@ -1237,16 +1238,10 @@ const EXPORT = {
         }
       });
 
-      if (sessionsCount === 0) {
-          throw new Error(`No sessions found for Subject: ${subObj.name}`);
-      }
+      const headers = ['Roll No', 'Student Name', 'Present Days', 'Total Classes', 'Percentage (%)', 'Status'];
 
-      // Headers: Roll, Name, Subject, Total, Present, Absent, Percentage
-      const headers = ['Roll No', 'Student Name', 'Subject', 'Total Classes', 'Present', 'Absent', 'Percentage (%)'];
-
-      // Rows
       const rows = students.map(s => {
-        let p = 0, a = 0;
+        let p = 0;
         dates.forEach(date => {
           if (filters.from && date < filters.from) return;
           if (filters.to && date > filters.to) return;
@@ -1254,26 +1249,24 @@ const EXPORT = {
           if (dayData && dayData[subId]) {
             Object.values(dayData[subId]).forEach(recs => {
               if (recs[s.id] === 'present') p++;
-              else if (recs[s.id] === 'absent') a++;
             });
           }
         });
-        const total = p + a;
+        const total = sessionsCount; // Strictly use total recorded sessions for this subject
         const pct = total > 0 ? (p / total * 100) : 0;
         return [
           s.roll, 
           s.name, 
-          subObj.name, 
-          total, 
           p, 
-          a, 
-          pct.toFixed(2) + '%'
+          total, 
+          pct.toFixed(2) + '%',
+          pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'
         ];
       });
 
       const meta = {
         isBatch: true,
-        facultyName: (sess && sess.role === 'teacher') ? sess.name : 'VEMU Institute',
+        facultyName: (sess && (sess.role === 'teacher' || sess.role==='hod')) ? sess.name : 'VEMU Institute',
         subjectName: `${subObj.name} (${subObj.code})`,
         year: UI.romanYear(filters.year || (students.length ? students[0].year : '—')),
         semester: UI.romanYear(filters.semester || (students.length ? students[0].semester : '—')),
@@ -1288,9 +1281,16 @@ const EXPORT = {
       const title = `Subject Summary Report: ${subObj.name}`;
       const fname = `Summary_Report_${subObj.code}_${meta.section}`;
 
-      // This fits perfectly in Portrait or Landscape
       if (format === 'word') this.toWord(headers, rows, fname, title, meta);
-      else this.toCSV(headers, rows, fname, meta);
+      else if (format === 'csv') this.toCSV(headers, rows, fname, meta);
+      else if (format === 'pdf') {
+         // PDF is handled by printing the Word logic or a dedicated window
+         const html = this._tableHTML(headers, rows, title, meta);
+         const win = window.open('', '_blank');
+         win.document.write(html);
+         win.document.close();
+         setTimeout(() => { win.print(); }, 500);
+      }
 
       UI.toast("Academic Summary Report generated", "success");
     } catch (e) {

@@ -265,6 +265,10 @@
             <select class="form-control" id="rep-sem" style="width:110px"><option value="">All</option><option>1</option><option>2</option></select>
           </div>
           <div class="form-group">
+            <label class="form-label">Subject</label>
+            <select class="form-control" id="rep-sub" style="width:170px" onchange="onRepSubChange()"><option value="">Select Subject</option></select>
+          </div>
+          <div class="form-group">
             <label class="form-label">From Date</label>
             <input type="date" class="form-control" id="rep-from" style="width:145px">
           </div>
@@ -284,9 +288,10 @@
           <div class="card-header">
             <span class="card-title" style="margin-bottom:0" id="rep-count">Results</span>
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary btn-sm" onclick="downloadDetailed('word')">📋 Detailed Word</button>
-              <button class="btn btn-success btn-sm" onclick="downloadRep('word')">⬇ Download Word</button>
-              <button class="btn btn-ghost btn-sm" onclick="downloadRep('csv')">⬇ Download CSV</button>
+              <button class="btn btn-primary btn-sm" onclick="downloadDetailed('word')">📋 Detailed Log</button>
+              <button class="btn btn-success btn-sm" onclick="downloadRep('word')">⬇ Word</button>
+              <button class="btn btn-danger btn-sm" onclick="downloadRep('pdf')">⬇ PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadRep('csv')">⬇ Excel</button>
             </div>
           </div>
           <div class="table-wrap"><table>
@@ -809,11 +814,31 @@ async function delSub(id){
 
 // ═══════════════ REPORTS ═══════════════
 let _repData=[];
-function initReports(){ populateSelects(); const today=new Date().toISOString().split('T')[0]; const from=new Date(); from.setDate(from.getDate()-30); document.getElementById('rep-from').value=from.toISOString().split('T')[0]; document.getElementById('rep-to').value=today; renderReports(); }
-function clearRepFilter(){ ['rep-dept','rep-year','rep-sec','rep-sem'].forEach(i=>document.getElementById(i).value=''); initReports(); }
+function onRepSubChange() { renderReports(); }
+function initReports(){ 
+    populateSelects(); 
+    const subs = DATA.getSubjects();
+    const subSel = document.getElementById('rep-sub');
+    if (subSel) subSel.innerHTML = '<option value="">All Subjects</option>' + subs.map(s => `<option value="${s.id}">${s.name} (${s.code})</option>`).join('');
+    
+    const today=new Date().toISOString().split('T')[0]; 
+    const from=new Date(); from.setDate(from.getDate()-30); 
+    document.getElementById('rep-from').value=from.toISOString().split('T')[0]; 
+    document.getElementById('rep-to').value=today; 
+    renderReports(); 
+}
+function clearRepFilter(){ ['rep-dept','rep-year','rep-sec','rep-sem','rep-sub'].forEach(i=>document.getElementById(i).value=''); initReports(); }
 async function renderReports(){
   const isDeep = document.getElementById('rep-deep')?.checked || false;
-  const f={dept:document.getElementById('rep-dept').value||undefined,year:document.getElementById('rep-year').value||undefined,section:document.getElementById('rep-sec').value||undefined,semester:document.getElementById('rep-sem').value||undefined,from:document.getElementById('rep-from').value||undefined,to:document.getElementById('rep-to').value||undefined};
+  const f={
+    dept:document.getElementById('rep-dept').value||undefined,
+    year:document.getElementById('rep-year').value||undefined,
+    section:document.getElementById('rep-sec').value||undefined,
+    semester:document.getElementById('rep-sem').value||undefined,
+    from:document.getElementById('rep-from').value||undefined,
+    to:document.getElementById('rep-to').value||undefined,
+    subjectId: document.getElementById('rep-sub').value || undefined
+  };
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">${isDeep ? 'Deep Recalculating Data...' : 'Analyzing Records...'}</p></td></tr>`;
   
@@ -832,8 +857,36 @@ async function renderReports(){
   
   tbody.innerHTML = _repData.map(r=>`<tr><td class="text-muted">${r.student.roll}</td><td class="fw-600">${r.student.name}</td><td><span class="pill pill-blue">${r.student.dept}</span></td><td>Y${r.student.year}/S${r.student.section}/Sem${r.student.semester||'—'}</td><td>${r.subject.name}</td><td style="color:#34d399">${r.present}</td><td style="color:#f87171">${r.absent}</td><td>${r.total}</td><td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td><td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'Eligible':'Shortage'}</span></td></tr>`).join('');
 }
-function downloadRep(fmt){ const f={dept:document.getElementById('rep-dept').value||undefined,year:document.getElementById('rep-year').value||undefined,section:document.getElementById('rep-sec').value||undefined,semester:document.getElementById('rep-sem').value||undefined,from:document.getElementById('rep-from').value||undefined,to:document.getElementById('rep-to').value||undefined}; EXPORT.filteredReport(f,fmt); }
-function downloadDetailed(fmt){ const f={dept:document.getElementById('rep-dept').value||undefined,year:document.getElementById('rep-year').value||undefined,section:document.getElementById('rep-sec').value||undefined,semester:document.getElementById('rep-sem').value||undefined,from:document.getElementById('rep-from').value||undefined,to:document.getElementById('rep-to').value||undefined}; EXPORT.detailedReport(f,fmt); }
+function downloadRep(fmt){ 
+  const subId = document.getElementById('rep-sub').value;
+  const f={
+    dept:document.getElementById('rep-dept').value||undefined,
+    year:document.getElementById('rep-year').value||undefined,
+    section:document.getElementById('rep-sec').value||undefined,
+    semester:document.getElementById('rep-sem').value||undefined,
+    from:document.getElementById('rep-from').value||undefined,
+    to:document.getElementById('rep-to').value||undefined,
+    subjectId: subId || undefined
+  };
+  
+  if (subId) {
+     EXPORT.subjectSummaryReport(f, fmt);
+  } else {
+     EXPORT.filteredReport(f, fmt);
+  }
+}
+function downloadDetailed(fmt){ 
+  const f={
+    dept:document.getElementById('rep-dept').value||undefined,
+    year:document.getElementById('rep-year').value||undefined,
+    section:document.getElementById('rep-sec').value||undefined,
+    semester:document.getElementById('rep-sem').value||undefined,
+    from:document.getElementById('rep-from').value||undefined,
+    to:document.getElementById('rep-to').value||undefined,
+    subjectId: document.getElementById('rep-sub').value || undefined
+  }; 
+  EXPORT.detailedReport(f,fmt); 
+}
 
 // ── Init ──
 window.addEventListener('app_ready', () => {

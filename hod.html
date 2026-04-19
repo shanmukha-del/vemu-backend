@@ -847,27 +847,43 @@ function togglePromoAll(checked) {
 }
 
 async function executeBulkPromotion() {
-  const ids = [...document.querySelectorAll('.promo-cb:checked')].map(cb => cb.value);
-  if(!ids.length) {
+  const selectedCbs = [...document.querySelectorAll('.promo-cb:checked')];
+  if(!selectedCbs.length) {
     UI.toast('Select at least one student to promote', 'error');
     return;
   }
 
-  const confirmed = await UI.confirm(`Promote ${ids.length} students? This will update their year/semester and DELETE all their current attendance records permanently.`, 'Bulk Promotion Engine');
+  const confirmed = await UI.confirm(`Promote ${selectedCbs.length} students? This will update their year/semester and DELETE all their current attendance records permanently.`, 'Bulk Promotion Engine');
   if(!confirmed) return;
 
   UI.toast('Initializing Promotion Engine...', 'info');
   
   try {
-    const success = await DATA.bulkPromote(ids);
+    const students = DATA.getStudents({ dept: myDept });
+    const groups = {};
+    
+    selectedCbs.forEach(cb => {
+        const student = students.find(s => s.id === cb.value);
+        if(!student) return;
+        const next = calculateNextTerm(student.year, student.semester);
+        const key = `${next.nextYear}|${next.nextSem}`;
+        if(!groups[key]) groups[key] = [];
+        groups[key].push(student.id);
+    });
 
-    if(success) {
+    let overallSuccess = true;
+    for(const key in groups) {
+        const [y, s] = key.split('|');
+        const ids = groups[key];
+        const ok = await DATA.bulkPromote(ids, y, s);
+        if(!ok) overallSuccess = false;
+    }
+
+    if(overallSuccess) {
         UI.toast('BINGO! Bulk Promotion Successful. System is now updated.', 'success');
-        setTimeout(() => {
-          window.location.reload(); 
-        }, 1500);
+        setTimeout(() => { window.location.reload(); }, 1500);
     } else {
-      UI.toast('Promotion failed. See console for details.', 'error');
+      UI.toast('Promotion failed or partially failed. Check network logs.', 'error');
     }
   } catch (err) {
     UI.toast('Network error during promotion', 'error');
