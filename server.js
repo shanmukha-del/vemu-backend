@@ -191,14 +191,23 @@ app.get('/api/attendance', async (req, res) => {
 app.post('/api/attendance/save', async (req, res) => {
     try {
         const { date, subjectId, section, period, records, teacherId } = req.body;
-        const result = await Attendance.findOneAndUpdate(
-            { date, subjectId, period },
-            { date, subjectId, section, period, records, lockedAt: new Date(), lockedBy: teacherId },
-            { upsert: true, new: true }
-        );
+        
+        // 1. Strict Lock Check: Verify if attendance for this session already exists
+        const existing = await Attendance.findOne({ date, subjectId, period });
+        if (existing) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Attendance is already locked for this period. Contact your HOD for modifications." 
+            });
+        }
+
+        // 2. Create new session
+        const result = new Attendance({ date, subjectId, section, period, records, lockedAt: new Date(), lockedBy: teacherId });
+        await result.save();
         res.json({ success: true, data: result });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
+
 
 app.get('/api/attendance-locks', async (req, res) => {
     try { res.json({ success: true, data: await Lock.find().lean() }); }

@@ -646,31 +646,52 @@ async function renderReports(){
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">Generating Academic Analytics...</p></td></tr>`;
 
-  const data = await DATA.getFilteredAttendance(f);
+  const res = await DATA.getFilteredAttendance(f);
+  const { students, attData } = res.data || { students: [], attData: [] };
+
+  const reportArray = students.map(s => {
+      // Find matching aggregation for this student
+      // Note: Backend aggregation returns { _id: { sid: "S1", sub: "CSE1" }, p: 10, t: 12 }
+      const stats = attData.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
+      const present = stats.p;
+      const total = stats.t;
+      const absent = total - present;
+      const pct = total ? Math.round((present / total) * 100) : 0;
+      
+      return {
+          student: s,
+          subject: subObj, 
+          present,
+          absent: Math.max(0, absent),
+          total,
+          pct
+      };
+  });
   
-  const regular = data.filter(r => (r.student.studentType || 'Regular') === 'Regular');
-  const le = data.filter(r => r.student.studentType === 'LE');
+  const regular = reportArray.filter(r => (r.student.studentType || 'Regular') === 'Regular');
+  const le = reportArray.filter(r => r.student.studentType === 'LE');
 
   const row = r => `<tr>
     <td class="text-muted">${r.student.roll}</td>
     <td class="fw-600">${r.student.name}</td>
     <td>${r.student.section}</td>
-    <td>${r.subject.name}</td>
-    <td><span class="pill pill-blue">${r.subject.code}</span></td>
-    <td>${r.subject.semester}</td>
+    <td>${r.subject ? r.subject.name : 'All Subjects'}</td>
+    <td><span class="pill pill-blue">${r.subject ? r.subject.code : 'MULT'}</span></td>
+    <td>${r.student.semester || '—'}</td>
     <td style="color:#34d399">${r.present}</td>
     <td style="color:#f87171">${r.absent}</td>
     <td>${r.total}</td>
     <td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td>
-    <td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'ELIGIBLE':'SHORTAGE'}</span></td>
+    <td><span class="pill ${r.pct >= 75 ? 'pill-green' : 'pill-red'}">${r.pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'}</span></td>
   </tr>`;
 
   let html = '';
   if (regular.length) html += `<tr class="table-group-header"><td colspan="11">Regular Students (${regular.length})</td></tr>` + regular.map(row).join('');
   if (le.length) html += `<tr class="table-group-header"><td colspan="11">Lateral Entry Students (LE) (${le.length})</td></tr>` + le.map(row).join('');
 
-  document.getElementById('rep-count').textContent=`${data.length} records`;
+  document.getElementById('rep-count').textContent = `${reportArray.length} students`;
   tbody.innerHTML = html || '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted)">No attendance recorded for this criteria.</td></tr>';
+
 }
 function downloadWord() { downloadTeacherReport('word'); }
 function downloadExcel() { downloadTeacherReport('csv'); }

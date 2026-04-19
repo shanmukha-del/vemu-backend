@@ -645,24 +645,52 @@ async function renderReports() {
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">${isDeep ? 'Deep Recalculating Data...' : 'Generating Department Report...'}</p></td></tr>`;
   
-  const data = await DATA.getFilteredAttendance(f, isDeep);
-  
+  const res = await DATA.getFilteredAttendance(f, isDeep);
+  const { students, attData } = res.data || { students: [], attData: [] };
+
   if (isDeep) {
     document.getElementById('rep-deep').checked = false;
     UI.toast('Deep refresh completed','success');
   }
-  
-  const regular = data.filter(r => (r.student.studentType || 'Regular') === 'Regular');
-  const le = data.filter(r => r.student.studentType === 'LE');
 
-  const row = r => `<tr><td class="text-muted">${r.student.roll}</td><td class="fw-600">${r.student.name}</td><td>Y${r.student.year}/S${r.student.section}/Sem${r.student.semester||'—'}</td><td>${r.subject.name}</td><td style="color:#34d399">${r.present}</td><td style="color:#f87171">${r.absent}</td><td>${r.total}</td><td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td><td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'Eligible':'Shortage'}</span></td></tr>`;
+  const reportArray = students.map(s => {
+      const stats = attData.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
+      const present = stats.p;
+      const total = stats.t;
+      const absent = total - present;
+      const pct = total ? Math.round((present / total) * 100) : 0;
+      
+      return {
+          student: s,
+          present,
+          absent: Math.max(0, absent),
+          total,
+          pct
+      };
+  });
+  
+  const regular = reportArray.filter(r => (r.student.studentType || 'Regular') === 'Regular');
+  const le = reportArray.filter(r => r.student.studentType === 'LE');
+
+  const row = r => `<tr>
+    <td class="text-muted">${r.student.roll}</td>
+    <td class="fw-600">${r.student.name}</td>
+    <td>Y${r.student.year}/S${r.student.section}/Sem${r.student.semester||'—'}</td>
+    <td>${f.subjectName || 'Departmental Summary'}</td>
+    <td style="color:#34d399">${r.present}</td>
+    <td style="color:#f87171">${r.absent}</td>
+    <td>${r.total}</td>
+    <td><span class="pill ${UI.pctPill(r.pct)}">${r.pct}%</span></td>
+    <td><span class="pill ${r.pct>=75?'pill-green':'pill-red'}">${r.pct>=75?'Eligible':'Shortage'}</span></td>
+  </tr>`;
 
   let html = '';
   if (regular.length) html += `<tr class="table-group-header"><td colspan="9">Regular Students (${regular.length})</td></tr>` + regular.map(row).join('');
   if (le.length) html += `<tr class="table-group-header"><td colspan="9">Lateral Entry Students (LE) (${le.length})</td></tr>` + le.map(row).join('');
 
-  document.getElementById('rep-count').textContent=`${data.length} records`;
+  document.getElementById('rep-count').textContent = `${reportArray.length} students`;
   tbody.innerHTML = html || '<tr class="empty-row"><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted)">No attendance recorded for this criteria.</td></tr>';
+
 }
 function downloadRep(fmt) {
   const f={dept:myDept, year:document.getElementById('rep-year').value||undefined, section:document.getElementById('rep-sec').value||undefined, semester:document.getElementById('rep-sem').value||undefined, from:document.getElementById('rep-from').value||undefined, to:document.getElementById('rep-to').value||undefined};

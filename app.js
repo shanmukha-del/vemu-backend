@@ -433,15 +433,12 @@ const DATA = {
   async saveSessionAtt(date, subId, records, section, lockedBy, period = "1") {
     const res = await apiCall('/attendance/save', 'POST', { date, subjectId: subId, records, section, lockedBy, period });
     if (res && res.success) {
-      // Refresh local attendance cache
-      const att = await apiCall('/attendance');
-      const locks = await apiCall('/attendance-locks');
-      if (att) this._cache.attendance = att;
-      if (locks) this._cache.locks = locks;
+      await this.refreshCache();
       return { success: true };
     }
-    return { success: false, reason: res ? res.reason : 'error' };
+    return { success: false, reason: res ? res.message : 'Unknown error' };
   },
+
 
   // Per-student stats (aggregator for ALL periods)
   getStudentStats(studentId, semester = null) {
