@@ -645,8 +645,9 @@ async function renderReports() {
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">${isDeep ? 'Deep Recalculating Data...' : 'Generating Department Report...'}</p></td></tr>`;
   
-  const res = await DATA.getFilteredAttendance(f, isDeep);
-  const { students, attData } = res.data || { students: [], attData: [] };
+  const data = await DATA.getFilteredAttendance(f, isDeep);
+  const { students, attData } = data || { students: [], attData: [] };
+
 
   if (isDeep) {
     document.getElementById('rep-deep').checked = false;

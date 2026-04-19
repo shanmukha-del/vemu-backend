@@ -646,8 +646,9 @@ async function renderReports(){
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">Generating Academic Analytics...</p></td></tr>`;
 
-  const res = await DATA.getFilteredAttendance(f);
-  const { students, attData } = res.data || { students: [], attData: [] };
+  const data = await DATA.getFilteredAttendance(f);
+  const { students, attData } = data || { students: [], attData: [] };
+
 
   const reportArray = students.map(s => {
       // Find matching aggregation for this student

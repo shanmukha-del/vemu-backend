@@ -227,7 +227,18 @@ app.post('/api/admin/clear-attendance', async (req, res) => {
 });
 
 // 5.1 Specialized Attendance Reports (With 30-day default)
+app.get('/api/attendance/previous', async (req, res) => {
+    try {
+        const { date, section, currentPeriod } = req.query;
+        const prevPeriod = (parseInt(currentPeriod) - 1).toString();
+        const record = await Attendance.findOne({ date, section, period: prevPeriod }).lean();
+        if (record) res.json({ success: true, records: record.records });
+        else res.json({ success: false });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 app.get('/api/attendance/reports', async (req, res) => {
+
     try {
         let { dept, year, semester, from, to } = req.query;
         
@@ -260,6 +271,7 @@ app.get('/api/attendance/reports', async (req, res) => {
         ]);
         res.json({ success: true, from, to, count: students.length, data: { students, attData } });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+
 });
 
 // 5.2 Attendance Modification (PUT)
