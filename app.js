@@ -495,14 +495,15 @@ const DATA = {
     return false;
   },
 
-  async bulkPromote(studentIds) {
-    const res = await apiCall('/students/bulk-promote', 'POST', { studentIds });
+  async bulkPromote(studentIds, targetYear, targetSemester) {
+    const res = await apiCall('/students/bulk-promote', 'POST', { studentIds, targetYear, targetSemester });
     if (res && res.success) {
       await this.refreshCache();
       return true;
     }
     return false;
   },
+
 
   async getPreviousAtt(date, section, currentPeriod) {
     const res = await apiCall(`/attendance/previous?date=${date}&section=${section}&currentPeriod=${currentPeriod}`);

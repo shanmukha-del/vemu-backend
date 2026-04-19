@@ -217,20 +217,75 @@ app.post('/api/admin/clear-attendance', async (req, res) => {
     }
 });
 
-app.get('/api/reports', async (req, res) => {
+// 5.1 Specialized Attendance Reports (With 30-day default)
+app.get('/api/attendance/reports', async (req, res) => {
     try {
-        const { dept, year, semester } = req.query;
-        const students = await Student.find({ dept, year, semester }).lean();
+        let { dept, year, semester, from, to } = req.query;
+        
+        // Default to last 30 days if no date range is provided
+        if (!from || !to) {
+            const end = new Date();
+            const start = new Date();
+            start.setDate(end.getDate() - 30);
+            from = from || start.toISOString().split('T')[0];
+            to = to || end.toISOString().split('T')[0];
+        }
+
+        const query = { dept };
+        if (year) query.year = year;
+        if (semester) query.semester = semester;
+
+        const students = await Student.find(query).lean();
         const studentIds = students.map(s => s.id);
+
         const attData = await Attendance.aggregate([
+            { $match: { date: { $gte: from, $lte: to } } },
             { $project: { subjectId: 1, records: { $objectToArray: "$records" } } },
             { $unwind: "$records" },
             { $match: { "records.k": { $in: studentIds } } },
-            { $group: { _id: { sid: "$records.k", sub: "$subjectId" }, p: { $sum: { $cond: [{ $eq: ["$records.v", "present"] }, 1, 0] } }, t: { $sum: 1 } } }
+            { $group: { 
+                _id: { sid: "$records.k", sub: "$subjectId" }, 
+                p: { $sum: { $cond: [{ $eq: ["$records.v", "present"] }, 1, 0] } }, 
+                t: { $sum: 1 } 
+            } }
         ]);
-        res.json({ success: true, data: { students, attData } });
+        res.json({ success: true, from, to, count: students.length, data: { students, attData } });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
+
+// 5.2 Attendance Modification (PUT)
+app.put('/api/attendance/update', async (req, res) => {
+    try {
+        const { date, subjectId, section, period, records } = req.body;
+        const query = { date, period };
+        if (subjectId) query.subjectId = subjectId;
+        if (section) query.section = section;
+
+        const result = await Attendance.findOneAndUpdate(
+            query,
+            { $set: { records } },
+            { new: true }
+        );
+        if (!result) return res.status(404).json({ success: false, message: "Attendance record not found for the given session" });
+        res.json({ success: true, data: result });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+
+// 5.3 Student Bulk Promotion Engine
+app.post('/api/students/bulk-promote', async (req, res) => {
+    try {
+        const { studentIds, targetYear, targetSemester } = req.body;
+        if (!studentIds || !Array.isArray(studentIds)) return res.status(400).json({ success: false, message: "Invalid student IDs" });
+        
+        const result = await Student.updateMany(
+            { id: { $in: studentIds } },
+            { $set: { year: targetYear, semester: targetSemester } }
+        );
+        res.json({ success: true, message: `Promoted ${result.modifiedCount} students`, data: result });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 
 // 6. Global 404 JSON Guard (Prevents SyntaxError: Unexpected token <)
 app.use((req, res) => {

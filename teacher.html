@@ -313,23 +313,29 @@ function loadDash() {
   const avg = dashStudents.length ? Math.round(dashStudents.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/dashStudents.length) : 0;
   const avgM = dashStudents.length ? Math.round(dashStudents.reduce((a,s)=>a+DATA.getStudentMonthlyStats(s.id, now.getFullYear(), now.getMonth()).pct,0)/dashStudents.length) : 0;
 
-  document.getElementById('t-stats').innerHTML=`
-    <div class="stat-card cyan"><div class="stat-val">${mySections.length}</div><div class="stat-lbl">My Sections</div></div>
-    <div class="stat-card purple"><div class="stat-val">${mySubjects.length}</div><div class="stat-lbl">My Subjects</div></div>
-    <div class="stat-card purple light"><div class="stat-val">${avgM}%</div><div class="stat-lbl">Avg. in ${mName}</div><div class="stat-sub">Monthly trend</div></div>
-    <div class="stat-card green"><div class="stat-val">${dashStudents.length}</div><div class="stat-lbl">Total Students</div></div>
-    <div class="stat-card yellow"><div class="stat-val">${avg}%</div><div class="stat-lbl">Avg. Attendance</div><div class="stat-sub">Total overall</div></div>`;
+  const statsEl = document.getElementById('t-stats');
+  if (statsEl) {
+    statsEl.innerHTML=`
+      <div class="stat-card cyan"><div class="stat-val">${mySections.length}</div><div class="stat-lbl">My Sections</div></div>
+      <div class="stat-card purple"><div class="stat-val">${mySubjects.length}</div><div class="stat-lbl">My Subjects</div></div>
+      <div class="stat-card purple light"><div class="stat-val">${avgM}%</div><div class="stat-lbl">Avg. in ${mName}</div><div class="stat-sub">Monthly trend</div></div>
+      <div class="stat-card green"><div class="stat-val">${dashStudents.length}</div><div class="stat-lbl">Total Students</div></div>
+      <div class="stat-card yellow"><div class="stat-val">${avg}%</div><div class="stat-lbl">Avg. Attendance</div><div class="stat-sub">Total overall</div></div>`;
+  }
 
   loadQuickGrid();
 
-  document.getElementById('t-sec-overview').innerHTML=mySections.map(sec=>{
-    const p=parseSec(sec); if(!p) return '';
-    const ss=DATA.getStudents(p);
-    const avg=ss.length?Math.round(ss.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/ss.length):0;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--glass-border)">
-      <div><div style="font-size:13px;font-weight:600;color:var(--text-main)">${sec}</div><div style="font-size:11px;color:var(--text-muted)">${ss.length} students</div></div>
-      <div style="display:flex;align-items:center;gap:10px"><div style="width:80px"><div class="progress"><div class="progress-fill" style="width:${avg}%;background:${UI.pctColor(avg)}"></div></div></div><span class="pill ${UI.pctPill(avg)}">${avg}%</span></div></div>`;
-  }).join('');
+  const overviewEl = document.getElementById('t-sec-overview');
+  if (overviewEl) {
+    overviewEl.innerHTML=mySections.map(sec=>{
+      const p=parseSec(sec); if(!p) return '';
+      const ss=DATA.getStudents(p);
+      const avg=ss.length?Math.round(ss.reduce((a,s)=>a+DATA.getStudentStats(s.id).pct,0)/ss.length):0;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--glass-border)">
+        <div><div style="font-size:13px;font-weight:600;color:var(--text-main)">${sec}</div><div style="font-size:11px;color:var(--text-muted)">${ss.length} students</div></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:80px"><div class="progress"><div class="progress-fill" style="width:${avg}%;background:${UI.pctColor(avg)}"></div></div></div><span class="pill ${UI.pctPill(avg)}">${avg}%</span></div></div>`;
+    }).join('');
+  }
 }
 
 function loadQuickGrid() {
@@ -352,8 +358,10 @@ function loadQuickGrid() {
     quickStudents.forEach(s => qState[s.id] = records[s.id] || null);
     renderQuickGrid(quickStudents, true);
     const lockBy = DATA.getLockInfo(today, subObj.id, secLabel, period)?.lockedBy || 'Unknown';
-    document.getElementById('q-lock-msg').innerHTML = `<div class="alert alert-success">Locked by ${lockBy}</div>`;
-    document.getElementById('q-bulk-btns').style.display = 'none';
+    const lockMsg = document.getElementById('q-lock-msg');
+    if (lockMsg) lockMsg.innerHTML = `<div class="alert alert-success">Locked by ${lockBy}</div>`;
+    const bBtns = document.getElementById('q-bulk-btns');
+    if (bBtns) bBtns.style.display = 'none';
   } else {
     quickStudents.forEach(s => qState[s.id] = null);
     renderQuickGrid(quickStudents, false);
@@ -361,8 +369,10 @@ function loadQuickGrid() {
     const btnClone = document.getElementById('btn-quick-clone');
     if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
 
-    document.getElementById('q-lock-msg').innerHTML = '';
-    document.getElementById('q-bulk-btns').style.display = 'flex';
+    const lockMsg = document.getElementById('q-lock-msg');
+    if (lockMsg) lockMsg.innerHTML = '';
+    const bBtns = document.getElementById('q-bulk-btns');
+    if (bBtns) bBtns.style.display = 'flex';
   }
 }
 
