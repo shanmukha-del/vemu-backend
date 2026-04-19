@@ -20,6 +20,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// 0.2 Request Logger (For Debugging & Demo)
+app.use((req, res, next) => {
+    console.log(`📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    next();
+});
+
 // 0.1 Health Check (For Monitoring & Wakeup)
 app.get('/api/health', (req, res) => {
     res.json({ status: "online", timestamp: new Date().toISOString() });
@@ -129,19 +135,36 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, message: 'Auth error' }); }
 });
 
-// 5. CRUD Standard Endpoints (No "next" callback conflicts)
+// 5. CRUD Standard Endpoints (RESTful Pattern)
 const generateGenericRoutes = (path, model, uniqueKey) => {
+    // List All
     app.get(`/api/${path}`, async (req, res) => {
         try { res.json({ success: true, data: await model.find().lean() }); }
-        catch (err) { res.status(500).json({ success: false, message: err.message }); }
+        catch (err) { res.status(500).json({ success: false, message: `Failed to fetch ${path}: ${err.message}` }); }
     });
-    app.post(`/api/${path}/add`, async (req, res) => {
+
+    // Create (Add)
+    app.post(`/api/${path}`, async (req, res) => {
         try { res.json({ success: true, data: await model.create(req.body) }); }
-        catch (err) { res.status(err.code === 11000 ? 409 : 500).json({ success: false, message: err.message }); }
+        catch (err) { res.status(err.code === 11000 ? 409 : 500).json({ success: false, message: `Failed to create ${path}: ${err.message}` }); }
     });
+
+    // Update
+    app.put(`/api/${path}/:id`, async (req, res) => {
+        try {
+            const result = await model.findOneAndUpdate({ id: req.params.id }, req.body, { new: true });
+            if (!result) return res.status(404).json({ success: false, message: `${path} not found` });
+            res.json({ success: true, data: result });
+        } catch (err) { res.status(500).json({ success: false, message: `Failed to update ${path}: ${err.message}` }); }
+    });
+
+    // Delete
     app.delete(`/api/${path}/:id`, async (req, res) => {
-        try { await model.findOneAndDelete({ id: req.params.id }); res.json({ success: true }); }
-        catch (err) { res.status(500).json({ success: false, message: err.message }); }
+        try {
+            const result = await model.findOneAndDelete({ id: req.params.id });
+            if (!result) return res.status(404).json({ success: false, message: `${path} not found` });
+            res.json({ success: true });
+        } catch (err) { res.status(500).json({ success: false, message: `Failed to delete ${path}: ${err.message}` }); }
     });
 };
 
@@ -207,4 +230,14 @@ app.get('/api/reports', async (req, res) => {
         ]);
         res.json({ success: true, data: { students, attData } });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// 6. Global 404 JSON Guard (Prevents SyntaxError: Unexpected token <)
+app.use((req, res) => {
+    console.warn(`🛑 404 Attempted: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ 
+        success: false, 
+        message: `Route ${req.originalUrl} not found. Check API synchronization.`,
+        hint: "Ensure your frontend endpoint matches the backend RESTful route."
+    });
 });

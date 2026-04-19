@@ -40,8 +40,8 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     const contentType = res.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
         const text = await res.text();
-        console.error("Non-JSON Response received:", text);
-        throw new Error("Server returned non-JSON response. Possibly 404 or backend crash.");
+        console.error(`[CRITICAL] Non-JSON Response from ${endpoint}:`, text.substring(0, 200));
+        throw new Error(`Server returned HTML instead of JSON. Check if the backend route is defined correctly.`);
     }
 
     const data = await res.json();
@@ -57,6 +57,7 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     clearTimeout(wakeupTimeout);
     UI.hideWakeUp();
     console.error(`Fetch error [${endpoint}]:`, err);
+
     
     // Check if it's a network error (possibly server down or cold starting)
     if (String(err).includes('Failed to fetch') || String(err).includes('NetworkError')) {
