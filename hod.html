@@ -670,6 +670,8 @@ async function renderReports() {
       };
   });
   
+  reportArray.sort((a, b) => a.student.roll.localeCompare(b.student.roll, undefined, {numeric: true, sensitivity: 'base'}));
+  
   const regular = reportArray.filter(r => (r.student.studentType || 'Regular') === 'Regular');
   const le = reportArray.filter(r => r.student.studentType === 'LE');
 

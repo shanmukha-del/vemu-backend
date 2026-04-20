@@ -166,6 +166,7 @@ const DATA = {
     locks: {}
   },
   _isRefreshing: false,
+  _lastReport: null,
 
   async refreshCache() {
     if (this._isRefreshing) return;
@@ -573,7 +574,11 @@ const DATA = {
       console.log(`📡 Fetching Report: ${API_BASE}${url}`);
       
       const res = await apiCall(url);
-      return (res && res.success) ? res.data : [];
+      if (res && res.success) {
+          this._lastReport = res.data;
+          return res.data;
+      }
+      return [];
     } catch (err) {
       console.error("Failed to fetch filtered attendance:", err);
       return [];
@@ -868,6 +873,19 @@ const UI = {
 
 // ── EXPORT HELPERS (Refactored for Professional Academic Reports) ────────────────────────
 const EXPORT = {
+  // Scraper Fallback if global data is missing
+  scrapeTable() {
+    const rows = [];
+    const tbody = document.getElementById('rep-tbody');
+    if (!tbody) return rows;
+    tbody.querySelectorAll('tr').forEach(tr => {
+      if (tr.classList.contains('empty-row') || tr.classList.contains('table-group-header')) return;
+      const cells = [...tr.querySelectorAll('td')].map(td => td.innerText.trim());
+      if (cells.length > 0) rows.push(cells);
+    });
+    return rows;
+  },
+
   // Centralized data engine for student reports
   generateReportData(studentId, semester = null) {
     const student = DATA.getStudents().find(s => s.id === studentId);
@@ -1122,8 +1140,20 @@ const EXPORT = {
   },
   async filteredReport(filters, format = 'word') {
     try {
-      const data = await DATA.getFilteredAttendance(filters);
-      if (!data.length) throw new Error('No records found for filters');
+      let data = await DATA.getFilteredAttendance(filters);
+      
+      // Table-Scraping Fallback
+      if (!data || (Array.isArray(data) && !data.length)) {
+          const scraped = this.scrapeTable();
+          if (scraped && scraped.length) {
+              const headers = ['Roll No', 'Name', 'Dept', 'Year/Sec', 'Subject', 'P', 'A', 'Total', '%', 'Status'];
+              const title = "Attendance Report (Table Sync)";
+              if (format === 'word') return this.toWord(headers, scraped, "sync_report", title);
+              else return this.toCSV(headers, scraped, "sync_report");
+          }
+          throw new Error('No records found for filters');
+      }
+
       const sess = AUTH.getSession();
       const uniqueStudentIds = [...new Set(data.map(r => r.student.id))];
       const isBatch = uniqueStudentIds.length > 1;
@@ -1213,78 +1243,62 @@ const EXPORT = {
 
   subjectSummaryReport(filters, format = 'word') {
     try {
-      const allAtt = DATA.getAttendance();
       const sess = AUTH.getSession();
-      const students = DATA.getStudents({
-        dept: filters.dept,
-        year: filters.year,
-        semester: filters.semester,
-        section: filters.section
-      });
-
-      if (!filters.subjectId) throw new Error("Please select a specific subject.");
-      
-      const subId = filters.subjectId;
-      const subObj = DATA._cache.subjects.find(x => x.id === subId);
-      if (!subObj) throw new Error("Subject not found.");
-
-      let sessionsCount = 0;
-      const dates = Object.keys(allAtt).sort();
-      dates.forEach(date => {
-        if (filters.from && date < filters.from) return;
-        if (filters.to && date > filters.to) return;
-        if (allAtt[date] && allAtt[date][subId]) {
-          sessionsCount += Object.keys(allAtt[date][subId]).length;
-        }
-      });
-
       const headers = ['Roll No', 'Student Name', 'Present Days', 'Total Classes', 'Percentage (%)', 'Status'];
+      let rows = [];
+      let subObj = null;
 
-      const rows = students.map(s => {
-        let p = 0;
-        dates.forEach(date => {
-          if (filters.from && date < filters.from) return;
-          if (filters.to && date > filters.to) return;
-          const dayData = allAtt[date];
-          if (dayData && dayData[subId]) {
-            Object.values(dayData[subId]).forEach(recs => {
-              if (recs[s.id] === 'present') p++;
-            });
-          }
+      // Use cached report data if available (Strict sync)
+      let reportData = DATA._lastReport;
+      
+      if (reportData && reportData.attData && reportData.students) {
+        console.log("📊 Exporting using cached API data...");
+        const students = reportData.students;
+        const attData = reportData.attData;
+        const subId = filters.subjectId;
+        
+        // Find the subject from cache for metadata
+        subObj = DATA._cache.subjects.find(x => x.id === subId);
+
+        rows = students.map(s => {
+          const stats = attData.find(a => a._id.sid === s.id && (subId ? a._id.sub === subId : true)) || { p: 0, t: 0 };
+          const pct = stats.t > 0 ? (stats.p / stats.t * 100) : 0;
+          return [s.roll, s.name, stats.p, stats.t, pct.toFixed(2) + '%', pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'];
         });
-        const total = sessionsCount; // Strictly use total recorded sessions for this subject
-        const pct = total > 0 ? (p / total * 100) : 0;
-        return [
-          s.roll, 
-          s.name, 
-          p, 
-          total, 
-          pct.toFixed(2) + '%',
-          pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'
-        ];
-      });
+      } else {
+        console.warn("⚠️ No cached data. Using table-scraping fallback...");
+        const scraped = this.scrapeTable();
+        if (scraped.length) {
+            if (format === 'word') return this.toWord(headers, scraped, "summary_sync", "Subject Summary (Sync)");
+            else return this.toCSV(headers, scraped, "summary_sync");
+        }
+        throw new Error("No data available for Subject Summary.");
+      }
+
+      if (!subObj && filters.subjectId) {
+          subObj = DATA._cache.subjects.find(x => x.id === filters.subjectId);
+      }
 
       const meta = {
         isBatch: true,
         facultyName: (sess && (sess.role === 'teacher' || sess.role==='hod')) ? sess.name : 'VEMU Institute',
-        subjectName: `${subObj.name} (${subObj.code})`,
-        year: UI.romanYear(filters.year || (students.length ? students[0].year : '—')),
-        semester: UI.romanYear(filters.semester || (students.length ? students[0].semester : '—')),
+        subjectName: subObj ? `${subObj.name} (${subObj.code})` : (filters.subjectName || 'Unknown Subject'),
+        year: UI.romanYear(filters.year || '—'),
+        semester: UI.romanYear(filters.semester || '—'),
         section: filters.section || 'All',
-        dateRange: `${UI.fmtDate(filters.from)} to ${UI.fmtDate(filters.to)}`,
+        dateRange: filters.from ? `${UI.fmtDate(filters.from)} to ${UI.fmtDate(filters.to)}` : 'Full History',
         generatedAt: {
           date: new Date().toLocaleDateString('en-IN'),
           time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
         }
       };
 
-      const title = `Subject Summary Report: ${subObj.name}`;
-      const fname = `Summary_Report_${subObj.code}_${meta.section}`;
+      const title = `Subject Summary Report: ${meta.subjectName}`;
+      const fname = `Summary_Report_${subObj ? subObj.code : 'SUB'}_${meta.section}`;
 
       if (format === 'word') this.toWord(headers, rows, fname, title, meta);
       else if (format === 'csv') this.toCSV(headers, rows, fname, meta);
       else if (format === 'pdf') {
-         // PDF is handled by printing the Word logic or a dedicated window
          const html = this._tableHTML(headers, rows, title, meta);
          const win = window.open('', '_blank');
          win.document.write(html);

@@ -842,7 +842,25 @@ async function renderReports(){
   const tbody = document.getElementById('rep-tbody');
   tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:50px"><div class="spinner spinner-lg"></div><p style="margin-top:15px;color:var(--text-muted);font-weight:600">${isDeep ? 'Deep Recalculating Data...' : 'Analyzing Records...'}</p></td></tr>`;
   
-  _repData = await DATA.getFilteredAttendance(f, isDeep);
+  if (f.dept && f.dept.includes(' - ')) {
+      f.dept = f.dept.split(' - ')[0];
+  }
+  
+  const data = await DATA.getFilteredAttendance(f, isDeep);
+  const { students, attData } = data || { students: [], attData: [] };
+  
+  _repData = students.map(s => {
+    const stats = attData.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
+    const sub = DATA._cache.subjects.find(x => x.id === (f.subjectId || stats._id?.sub));
+    return {
+      student: s,
+      subject: sub || { name: 'Multiple', code: 'MULT' },
+      present: stats.p,
+      absent: Math.max(0, stats.t - stats.p),
+      total: stats.t,
+      pct: stats.t ? Math.round((stats.p / stats.t) * 100) : 0
+    };
+  });
   
   if (isDeep) {
     document.getElementById('rep-deep').checked = false;

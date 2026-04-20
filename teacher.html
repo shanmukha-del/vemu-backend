@@ -214,8 +214,9 @@
             <span class="card-title" style="margin-bottom:0" id="rep-count">Results</span>
             <div style="display:flex;gap:8px">
               <button class="btn btn-primary btn-sm" onclick="downloadDetailed('word')">📋 Detailed Log</button>
-              <button class="btn btn-success btn-sm" onclick="downloadWord()">⬇ Download Word</button>
-              <button class="btn btn-ghost btn-sm"   onclick="downloadExcel()">⬇ Download Excel</button>
+              <button class="btn btn-success btn-sm" onclick="downloadTeacherReport('word')">⬇ Word</button>
+              <button class="btn btn-danger btn-sm" onclick="downloadTeacherReport('pdf')">⬇ PDF</button>
+              <button class="btn btn-ghost btn-sm"   onclick="downloadTeacherReport('csv')">⬇ Excel</button>
             </div>
           </div>
           <div class="table-wrap"><table>
@@ -447,36 +448,42 @@ function loadAttGrid(){
   refreshSubjectFilters();
   const subName =document.getElementById('att-sub')?.value;
   const date    =document.getElementById('att-date')?.value;
-  if (!secLabel) return;
-  const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
-  const locked=subObj&&date?DATA.isLocked(date,subObj.id,secLabel,period):false;
-  attLocked=locked;
-  const saved=subObj&&date?DATA.getSessionAtt(date,subObj.id,period):{};
   
-  attState={};
-  const attStudents = filterStudents();
-  attStudents.forEach(s=>attState[s.id]=saved[s.id]||null);
-
-  const lockNotice=document.getElementById('att-lock-notice');
-  const savBtn=document.getElementById('att-save-btn');
-  const bulkBtns=document.getElementById('att-bulk-btns');
-  if (locked) {
-    const info=subObj?DATA.getLockInfo(date,subObj.id,secLabel,period):null;
-    const by=info?` by ${info.lockedBy}`:'';
-    lockNotice.innerHTML=`✓ Period ${period} attendance already locked${by}.`;
-    lockNotice.style.display='flex';
-    if(savBtn) savBtn.style.display='none';
-    if(bulkBtns) bulkBtns.style.display='none';
-  } else {
-    lockNotice.style.display='none';
-    if(savBtn) savBtn.style.display='';
-    if(bulkBtns) bulkBtns.style.display='flex';
+  DATA.refreshCache().then(() => {
+    if (!secLabel) return;
+    const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
+    const locked=subObj&&date?DATA.isLocked(date,subObj.id,secLabel,period):false;
+    attLocked=locked;
+    const saved=subObj&&date?DATA.getSessionAtt(date,subObj.id,period):{};
     
-    // Toggle Clone Button
-    const btnClone = document.getElementById('btn-att-clone');
-    if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
-  }
-  renderAttGrid(attStudents);
+    attState={};
+    const attStudents = filterStudents();
+    attStudents.forEach(s=>attState[s.id]=saved[s.id]||null);
+
+    const lockNotice=document.getElementById('att-lock-notice');
+    const savBtn=document.getElementById('att-save-btn');
+    const bulkBtns=document.getElementById('att-bulk-btns');
+    if (locked) {
+      const info=subObj?DATA.getLockInfo(date,subObj.id,secLabel,period):null;
+      const by=`Attendance already marked by ${info?.lockedBy || 'Faculty'} for this period.`;
+      lockNotice.innerHTML=`<div style="display:flex; align-items:center; gap:10px">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
+        <span>${by}</span>
+      </div>`;
+      lockNotice.classList.remove('alert-success');
+      lockNotice.classList.add('alert-warning');
+      lockNotice.style.display='flex';
+      if(savBtn) savBtn.style.display='none';
+      if(bulkBtns) bulkBtns.style.display='none';
+    } else {
+      lockNotice.style.display='none';
+      if(savBtn) savBtn.style.display='';
+      if(bulkBtns) bulkBtns.style.display='flex';
+      const btnClone = document.getElementById('btn-att-clone');
+      if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
+    }
+    renderAttGrid(attStudents);
+  });
 }
 function renderAttGrid(sList){
   const card = s => {
@@ -651,23 +658,21 @@ async function renderReports(){
 
 
   const reportArray = students.map(s => {
-      // Find matching aggregation for this student
-      // Note: Backend aggregation returns { _id: { sid: "S1", sub: "CSE1" }, p: 10, t: 12 }
       const stats = attData.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
       const present = stats.p;
       const total = stats.t;
-      const absent = total - present;
-      const pct = total ? Math.round((present / total) * 100) : 0;
       
       return {
           student: s,
           subject: subObj, 
           present,
-          absent: Math.max(0, absent),
+          absent: Math.max(0, total - present),
           total,
-          pct
+          pct: total ? ((present / total) * 100).toFixed(2) : "0.00"
       };
   });
+  
+  reportArray.sort((a, b) => a.student.roll.localeCompare(b.student.roll, undefined, {numeric: true, sensitivity: 'base'}));
   
   const regular = reportArray.filter(r => (r.student.studentType || 'Regular') === 'Regular');
   const le = reportArray.filter(r => r.student.studentType === 'LE');
@@ -721,7 +726,9 @@ function downloadTeacherReport(fmt) {
   };
 
   // Strictly route to subjectSummaryReport for teachers as requested
-  EXPORT.subjectSummaryReport(f, fmt);
+  DATA.refreshCache().then(() => {
+    EXPORT.subjectSummaryReport(f, fmt);
+  });
 }
 
 function downloadRep(fmt){
