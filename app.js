@@ -1148,10 +1148,11 @@ const EXPORT = {
           if (scraped && scraped.length) {
               const headers = ['Roll No', 'Name', 'Dept', 'Year/Sec', 'Subject', 'P', 'A', 'Total', '%', 'Status'];
               const title = "Attendance Report (Table Sync)";
+              // Ensure scraped data is also sorted if possible (usually it's already sorted by UI)
               if (format === 'word') return this.toWord(headers, scraped, "sync_report", title);
               else return this.toCSV(headers, scraped, "sync_report");
           }
-          throw new Error('No records found for filters');
+          throw new Error('Please Apply Filter First to view results before downloading.');
       }
 
       const sess = AUTH.getSession();
@@ -1175,6 +1176,8 @@ const EXPORT = {
           const pctNum = s.t > 0 ? (s.p / s.t * 100) : 0;
           return [s.roll, s.name, s.t, s.p, pctNum.toFixed(2) + '%', pctNum >= 75 ? 'ELIGIBLE' : 'SHORTAGE'];
         });
+        // Task 1: Harden Export Sorting
+        rows.sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric: true, sensitivity: 'base'}));
       } else {
         // Individual Subject Breakdown
         headers = ['Subject', 'Subject Code', 'Sem', 'Present', 'Absent', 'Total', 'Attendance %', 'Status'];
@@ -1265,6 +1268,8 @@ const EXPORT = {
           const pct = stats.t > 0 ? (stats.p / stats.t * 100) : 0;
           return [s.roll, s.name, stats.p, stats.t, pct.toFixed(2) + '%', pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'];
         });
+        // Task 1: Harden Export Sorting
+        rows.sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric: true, sensitivity: 'base'}));
       } else {
         console.warn("⚠️ No cached data. Using table-scraping fallback...");
         const scraped = this.scrapeTable();
@@ -1272,7 +1277,7 @@ const EXPORT = {
             if (format === 'word') return this.toWord(headers, scraped, "summary_sync", "Subject Summary (Sync)");
             else return this.toCSV(headers, scraped, "summary_sync");
         }
-        throw new Error("No data available for Subject Summary.");
+        throw new Error("Please Apply Filter First to generate the report.");
       }
 
       if (!subObj && filters.subjectId) {
