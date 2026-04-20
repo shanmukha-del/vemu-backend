@@ -847,10 +847,13 @@ async function renderReports(){
   f.dept = rawDept ? rawDept.split(' - ')[0].trim() : undefined;
   
   const data = await DATA.getFilteredAttendance(f, isDeep);
-  const { students, attData } = data || { students: [], attData: [] };
   
-  _repData = students.map(s => {
-    const stats = attData.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
+  // Task 4: Resilience & Standardized Contract
+  const studentsArr = Array.isArray(data) ? data : (data.students || []);
+  const attDataArr  = data.attData || [];
+  
+  _repData = studentsArr.map(s => {
+    const stats = attDataArr.find(a => a._id.sid === s.id && (f.subjectId ? a._id.sub === f.subjectId : true)) || { p: 0, t: 0 };
     const sub = DATA._cache.subjects.find(x => x.id === (f.subjectId || stats._id?.sub));
     return {
       student: s,

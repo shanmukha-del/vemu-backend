@@ -576,12 +576,19 @@ const DATA = {
       const res = await apiCall(url);
       if (res && res.success) {
           this._lastReport = res.data;
-          return res.data;
+          // Standardize Contract: Always return { students, attData }
+          if (res.data && (res.data.students || res.data.attData)) {
+              return { 
+                students: res.data.students || [], 
+                attData: res.data.attData || [] 
+              };
+          }
+          if (Array.isArray(res.data)) return { students: res.data, attData: [] };
       }
-      return [];
+      return { students: [], attData: [] };
     } catch (err) {
       console.error("Failed to fetch filtered attendance:", err);
-      return [];
+      return { students: [], attData: [] };
     }
   },
 
@@ -1140,53 +1147,59 @@ const EXPORT = {
   },
   async filteredReport(filters, format = 'word') {
     try {
-      let data = await DATA.getFilteredAttendance(filters);
+      let response = await DATA.getFilteredAttendance(filters);
       
       // Table-Scraping Fallback
-      if (!data || (Array.isArray(data) && !data.length)) {
+      if (!response || (!response.students.length && !this.scrapeTable().length)) {
           const scraped = this.scrapeTable();
           if (scraped && scraped.length) {
               const headers = ['Roll No', 'Name', 'Dept', 'Year/Sec', 'Subject', 'P', 'A', 'Total', '%', 'Status'];
               const title = "Attendance Report (Table Sync)";
-              // Ensure scraped data is also sorted if possible (usually it's already sorted by UI)
+              // Alphanumeric Sort Scraped Data
+              scraped.sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric: true, sensitivity: 'base'}));
               if (format === 'word') return this.toWord(headers, scraped, "sync_report", title);
               else return this.toCSV(headers, scraped, "sync_report");
           }
           throw new Error('Please Apply Filter First to view results before downloading.');
       }
 
+      const students = response.students || [];
+      const attData  = response.attData || [];
       const sess = AUTH.getSession();
-      const uniqueStudentIds = [...new Set(data.map(r => r.student.id))];
-      const isBatch = uniqueStudentIds.length > 1;
-      const sample = data[0].student;
+      
+      if (!students.length) throw new Error('Please Apply Filter First.');
+      
+      const isBatch = students.length > 1;
+      const sample = students[0];
 
       let headers, rows;
       if (isBatch) {
         // Aggregate by student for Batch Summary
         headers = ['Roll No', 'Student Name', 'Total Classes', 'Present', 'Attendance %', 'Status'];
-        const studentAgg = {};
-        data.forEach(r => {
-          if (!studentAgg[r.student.id]) {
-            studentAgg[r.student.id] = { roll: r.student.roll, name: r.student.name, p: 0, t: 0 };
-          }
-          studentAgg[r.student.id].p += r.present;
-          studentAgg[r.student.id].t += r.total;
+        rows = students.map(s => {
+          const stats = attData.filter(a => a._id.sid === s.id);
+          let p = 0, t = 0;
+          stats.forEach(st => { p += st.p; t += st.t; });
+          const pctNum = t > 0 ? (p / t * 100) : 0;
+          return [s.roll, s.name, t, p, pctNum.toFixed(2) + '%', pctNum >= 75 ? 'ELIGIBLE' : 'SHORTAGE'];
         });
-        rows = Object.values(studentAgg).map(s => {
-          const pctNum = s.t > 0 ? (s.p / s.t * 100) : 0;
-          return [s.roll, s.name, s.t, s.p, pctNum.toFixed(2) + '%', pctNum >= 75 ? 'ELIGIBLE' : 'SHORTAGE'];
-        });
-        // Task 1: Harden Export Sorting
-        rows.sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric: true, sensitivity: 'base'}));
       } else {
         // Individual Subject Breakdown
         headers = ['Subject', 'Subject Code', 'Sem', 'Present', 'Absent', 'Total', 'Attendance %', 'Status'];
-        rows = data.map(r => [
-          r.subject.name, r.subject.code, r.student.semester,
-          r.present, r.absent, r.total, r.pct + '%',
-          r.pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'
-        ]);
+        const studentStats = attData.filter(a => a._id.sid === sample.id);
+        rows = studentStats.map(stat => {
+          const sub = DATA._cache.subjects.find(x => x.id === stat._id.sub);
+          const p = stat.p, t = stat.t;
+          const pct = t > 0 ? (p/t*100) : 0;
+          return [
+            sub ? sub.name : 'Unknown', sub ? sub.code : '—', sample.semester || '—',
+            p, t - p, t, pct.toFixed(2) + '%', pct >= 75 ? 'ELIGIBLE' : 'SHORTAGE'
+          ];
+        });
       }
+
+      // Task 3: Enforce Alphanumeric Sorting in All Exports
+      rows.sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric: true, sensitivity: 'base'}));
 
       const meta = {
         isBatch: isBatch,
