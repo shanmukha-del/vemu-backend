@@ -14,12 +14,8 @@
       --bg-slate: #1e293b;
     }
 
-    body {
-      height: auto;
-      min-height: 100vh;
-      overflow-x: hidden;
-      overflow-y: auto;
-      perspective: 1000px;
+    body.scrollable-page {
+      perspective: 1000px; /* 3D context for login animations */
     }
 
     
@@ -323,7 +319,7 @@
     }
   </style>
 </head>
-<body class="login-page">
+<body class="login-page scrollable-page">
   <div class="bg-mesh"></div>
   <!-- Theme Toggle -->
   <button class="hamburger-btn" id="theme-toggle" onclick="THEME.toggle()" title="Toggle Theme" style="position:fixed; top:20px; right:20px; z-index:1000">
@@ -396,6 +392,56 @@
     </div>
   </div>
 
+  <!-- ── Project Team Section ── -->
+  <section class="team-section" id="project-team" aria-label="Project Team">
+    <div class="team-inner">
+      <div class="team-badge">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Project Team
+      </div>
+      <h2 class="team-name">NOVUS UNIT</h2>
+      <p class="team-subtitle">Developed & Designed by</p>
+      <div class="team-grid">
+        <div class="team-member">
+          <span class="member-name">G. Chiru Prakash</span>
+          <span class="member-roll">254M5A0507</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">K. Shanmukhaswaroop</span>
+          <span class="member-roll">254M5A0509</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">K. Krishna</span>
+          <span class="member-roll">254M5A0512</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">K. Poorendra</span>
+          <span class="member-roll">254M5A0508</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">Abhishek</span>
+          <span class="member-roll">254M5A0510</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">Hameed</span>
+          <span class="member-roll">244M1A05A7</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">K B Shiva</span>
+          <span class="member-roll">244M1A05B6</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">G. Govardhan</span>
+          <span class="member-roll">244M1A0596</span>
+        </div>
+        <div class="team-member">
+          <span class="member-name">G. Thanzil</span>
+          <span class="member-roll">244M1A05A4</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
 <script src="app.js"></script>
 <script>
   let currentRole = null;
@@ -427,12 +473,15 @@
     document.getElementById('err-box').classList.add('hidden');
     document.getElementById('ok-box').classList.add('hidden');
     document.getElementById('uid-in').focus();
+    // Smoothly scroll to top to ensure form is visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-
   function goBack() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('role-screen').classList.remove('hidden');
     currentRole = null;
+    // Smoothly scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function doLogin(e) {
