@@ -459,6 +459,46 @@
   </div>
 </div>
 
+<!-- Biometric Registration Modal -->
+<div class="modal-backdrop" id="bioRegModal">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h3>Register Biometric Face Template</h3>
+      <button class="modal-close" onclick="closeBioRegModal()">×</button>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">
+        Registering face for student: <strong id="bio-roll-display" style="color: var(--primary);"></strong>
+      </p>
+      
+      <!-- Video stream container -->
+      <div style="margin: 0 auto 15px auto; width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.1); background: #000; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; position: relative;">
+        <video id="bio-stream-video" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
+        <canvas id="bio-stream-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; pointer-events: none;"></canvas>
+        <div id="bio-stream-loader" class="spinner spinner-lg"></div>
+      </div>
+      
+      <!-- Status text -->
+      <div id="bio-status-alert" class="alert alert-info" style="font-size: 12px; margin-bottom: 15px;">
+        Click "Start Capture" to activate the camera and register face template.
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="progress" style="height: 10px; margin-bottom: 15px; display: none;" id="bio-progress-container">
+        <div class="progress-fill" id="bio-progress-bar" style="width: 0%; background: var(--primary);"></div>
+      </div>
+      
+    </div>
+    <div class="modal-footer" style="display: flex; justify-content: space-between;">
+      <button class="btn btn-ghost btn-sm" onclick="closeBioRegModal()">Close</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-danger btn-sm" id="btn-bio-cancel" onclick="cancelBioReg()" style="display: none;">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btn-bio-start" onclick="startBioReg()">Start Capture</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast-container"></div>
 <script src="app.js"></script>
 <script>
@@ -736,7 +776,7 @@ function renderStudents() {
 
     const row = s => {
         const p = DATA.getStudentStats(s.id).pct;
-        return `<tr class="clickable-row" onclick="viewStudent('${s.id}')"><td class="fw-600 text-primary">${s.name}</td><td class="text-muted">${s.roll}</td><td><span class="pill pill-blue">${s.dept}</span></td><td>Y${s.year}/S${s.section}/Sem${s.semester || '—'}</td><td class="text-muted">${s.email || '—'}</td><td><span class="pill ${UI.pctPill(p)}">${p}%</span></td><td><button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); editStu('${s.id}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); delStu('${s.id}')">Del</button></td></tr>`;
+        return `<tr class="clickable-row" onclick="viewStudent('${s.id}')"><td class="fw-600 text-primary">${s.name}</td><td class="text-muted">${s.roll}</td><td><span class="pill pill-blue">${s.dept}</span></td><td>Y${s.year}/S${s.section}/Sem${s.semester || '—'}</td><td class="text-muted">${s.email || '—'}</td><td><span class="pill ${UI.pctPill(p)}">${p}%</span></td><td><button class="btn btn-ghost btn-xs" style="color:var(--primary)" onclick="event.stopPropagation(); openBioRegModal('${s.id}', '${s.roll}')">📸 Bio</button> <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); editStu('${s.id}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); delStu('${s.id}')">Del</button></td></tr>`;
     };
 
     const regular = list.filter(s => (s.studentType || 'Regular') === 'Regular');
@@ -910,6 +950,166 @@ function downloadDetailed(fmt){
     subjectId: document.getElementById('rep-sub').value || undefined
   }; 
   EXPORT.detailedReport(f,fmt); 
+}
+
+// ═══════════════ BIOMETRIC REGISTRATION ═══════════════
+const FRS_API_BASE = 'http://localhost:8000/api';
+let bioRegInterval = null;
+let bioRegStream = null;
+let currentBioRoll = null;
+let currentBioId = null;
+
+function openBioRegModal(sid, roll) {
+  currentBioId = sid;
+  currentBioRoll = roll;
+  document.getElementById('bio-roll-display').textContent = roll;
+  
+  const alertEl = document.getElementById('bio-status-alert');
+  alertEl.className = 'alert alert-info';
+  alertEl.textContent = 'Click "Start Capture" to activate the camera and register face template.';
+  
+  document.getElementById('btn-bio-start').style.display = 'inline-block';
+  document.getElementById('btn-bio-start').disabled = false;
+  document.getElementById('btn-bio-cancel').style.display = 'none';
+  document.getElementById('bio-progress-container').style.display = 'none';
+  document.getElementById('bio-progress-bar').style.width = '0%';
+  const video = document.getElementById('bio-stream-video');
+  const canvas = document.getElementById('bio-stream-canvas');
+  video.style.display = 'none';
+  canvas.style.display = 'none';
+  document.getElementById('bio-stream-loader').style.display = 'none';
+  
+  UI.openModal('bioRegModal');
+}
+
+async function startBioReg() {
+  try {
+    document.getElementById('btn-bio-start').disabled = true;
+    document.getElementById('bio-status-alert').textContent = 'Connecting to camera...';
+    document.getElementById('bio-stream-loader').style.display = 'block';
+    
+    // 1. Tell FRS FastAPI to start registration mode
+    const res = await fetch(`${FRS_API_BASE}/register/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roll: currentBioRoll, id: currentBioId })
+    });
+    
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Failed to start registration mode.');
+    }
+    
+    // 2. Start WebRTC Stream
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    bioRegStream = stream;
+    const video = document.getElementById('bio-stream-video');
+    const canvas = document.getElementById('bio-stream-canvas');
+    video.srcObject = stream;
+    video.style.display = 'block';
+    canvas.style.display = 'block';
+    document.getElementById('bio-stream-loader').style.display = 'none';
+    
+    document.getElementById('btn-bio-start').style.display = 'none';
+    document.getElementById('btn-bio-cancel').style.display = 'inline-block';
+    document.getElementById('bio-progress-container').style.display = 'block';
+    document.getElementById('bio-status-alert').textContent = 'Please look straight into the camera.';
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 640;
+    tempCanvas.height = 480;
+    const tempCtx = tempCanvas.getContext('2d');
+    const displayCtx = canvas.getContext('2d');
+    
+    // 3. Start sending frames
+    if (bioRegInterval) clearInterval(bioRegInterval);
+    bioRegInterval = setInterval(() => {
+        if(video.readyState === video.HAVE_ENOUGH_DATA) {
+            if(canvas.width !== video.clientWidth) {
+                canvas.width = video.clientWidth;
+                canvas.height = video.clientHeight;
+            }
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+            const base64Img = tempCanvas.toDataURL('image/jpeg', 0.8);
+            
+            fetch(`${FRS_API_BASE}/register/frame`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Img })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if(result.success) {
+                    displayCtx.clearRect(0, 0, canvas.width, canvas.height);
+                    const scaleX = canvas.width / 640;
+                    const scaleY = canvas.height / 480;
+                    
+                    if (result.faces && result.faces.length > 0) {
+                        result.faces.forEach(loc => {
+                            const top = loc[0] * scaleY;
+                            const right = loc[1] * scaleX;
+                            const bottom = loc[2] * scaleY;
+                            const left = loc[3] * scaleX;
+                            displayCtx.strokeStyle = result.status === 'wrong_pose' || result.status === 'spoof' ? 'red' : 'green';
+                            displayCtx.lineWidth = 2;
+                            displayCtx.strokeRect(left, top, right - left, bottom - top);
+                        });
+                    }
+
+                    const alertEl = document.getElementById('bio-status-alert');
+                    if(result.status === 'success') {
+                        document.getElementById('bio-progress-bar').style.width = '100%';
+                        alertEl.className = 'alert alert-success';
+                        alertEl.textContent = result.message;
+                        UI.toast('Face registered successfully!', 'success');
+                        closeBioRegModal(true); // Close but keep success toast
+                    } else {
+                        // Update progress bar implicitly based on parsing message (samples_count/10)
+                        const m = result.message.match(/\\((\\d+)\\/10\\)/);
+                        if (m) {
+                            const pct = Math.min(100, (parseInt(m[1]) / 10) * 100);
+                            document.getElementById('bio-progress-bar').style.width = `${pct}%`;
+                        }
+                        
+                        alertEl.className = (result.status === 'wrong_pose' || result.status === 'multiple_faces' || result.status === 'spoof' || result.status === 'no_face') ? 'alert alert-warning' : 'alert alert-info';
+                        alertEl.textContent = result.message;
+                    }
+                }
+            }).catch(e => console.error("Bio frame err:", e));
+        }
+    }, 500);
+    
+  } catch (err) {
+    document.getElementById('btn-bio-start').disabled = false;
+    document.getElementById('bio-stream-loader').style.display = 'none';
+    const alertEl = document.getElementById('bio-status-alert');
+    alertEl.className = 'alert alert-danger';
+    alertEl.textContent = 'Error: ' + err.message + ' (Check camera permissions & FRS server)';
+  }
+}
+
+async function cancelBioReg() {
+  closeBioRegModal();
+}
+
+async function closeBioRegModal(keepToast = false) {
+  if (bioRegInterval) clearInterval(bioRegInterval);
+  bioRegInterval = null;
+  if (bioRegStream) {
+      bioRegStream.getTracks().forEach(t => t.stop());
+      bioRegStream = null;
+  }
+  const video = document.getElementById('bio-stream-video');
+  video.pause();
+  video.srcObject = null;
+  const canvas = document.getElementById('bio-stream-canvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  
+  try {
+    await fetch(`${FRS_API_BASE}/register/cancel`, { method: 'POST' });
+  } catch(e){}
+  
+  UI.closeModal('bioRegModal');
 }
 
 // ── Init ──

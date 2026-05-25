@@ -109,6 +109,10 @@
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-right:4px"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
               Copy Previous
             </button>
+            <button class="btn btn-primary btn-sm" onclick="triggerFaceScan('quick')" style="background:var(--primary); color:#fff; border:none; display:flex; align-items:center; gap:4px">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              📸 Face Scan
+            </button>
             <button class="btn btn-primary btn-sm" onclick="saveQuick()">Submit & Lock</button>
             <span id="q-counter" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
           </div>
@@ -146,6 +150,10 @@
           <div style="display:flex;gap:8px">
             <button class="btn btn-success btn-sm" onclick="markAllPresent()">✓ All Present</button>
             <button class="btn btn-danger btn-sm"  onclick="markAllAbsent()">✗ All Absent</button>
+            <button class="btn btn-primary btn-sm" onclick="triggerFaceScan('full')" style="background:var(--primary); color:#fff; border:none; display:flex; align-items:center; gap:4px">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              📸 Face Scan
+            </button>
             <button class="btn btn-ghost btn-sm" id="btn-att-clone" onclick="cloneAttendance('full')" style="border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.02); display:none">
                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-right:4px"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
                Copy from Previous Period
@@ -230,6 +238,36 @@
         <div class="chairman-name">Dr. K. Chandrashekhar Naidu</div>
         <div class="chairman-title">Hon'ble Chairman – VEMU Group</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Classroom Scan Modal -->
+<div class="modal-backdrop" id="classScanModal" style="display:none; justify-content:center; align-items:center; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000;">
+  <div class="modal modal-md" style="background:var(--bg-card); border-radius:12px; padding:20px; width:90%; max-width:450px; border:1px solid rgba(255,255,255,0.1); color: var(--text-main);">
+    <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+      <h3 style="margin:0">Silent Watchman Classroom Scan</h3>
+      <button class="modal-close" onclick="closeClassScanModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:20px;">&times;</button>
+    </div>
+    <div class="modal-body" style="text-align:center;">
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px;" id="scan-modal-details">
+        Scanning section...
+      </p>
+      <!-- Video stream container -->
+      <div style="margin:0 auto 15px auto; width:100%; aspect-ratio:4/3; border-radius:12px; overflow:hidden; border:2px solid rgba(255,255,255,0.1); background:#000; display:flex; align-items:center; justify-content:center; position:relative;">
+        <video id="scan-stream-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
+        <canvas id="scan-stream-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; pointer-events:none;"></canvas>
+        <div id="scan-stream-loader" class="spinner spinner-lg"></div>
+      </div>
+      <div id="scan-status-alert" class="alert alert-info" style="font-size:12px; margin-bottom:15px;">
+        Starting camera...
+      </div>
+      <div class="progress" style="height:10px; margin-bottom:15px;" id="scan-progress-container">
+        <div class="progress-fill" id="scan-progress-bar" style="width:100%; background:var(--primary); transition: width 1s linear;"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex; justify-content:flex-end;">
+      <button class="btn btn-ghost btn-sm" onclick="closeClassScanModal()">Close</button>
     </div>
   </div>
 </div>
@@ -760,6 +798,189 @@ function downloadDetailed(fmt){
     to:   document.getElementById('rep-to')?.value||undefined
   };
   EXPORT.detailedReport(f,fmt);
+}
+
+let classScanTimer = null;
+let classScanSecondsRemaining = 0;
+let localStream = null;
+let frameInterval = null;
+
+function triggerFaceScan(type) {
+  const isQuick = (type === 'quick');
+  const secLabel = document.getElementById(isQuick ? 'q-sec' : 'att-sec').value;
+  const sem = document.getElementById(isQuick ? 'q-sem' : 'att-sem').value;
+  const subName = document.getElementById(isQuick ? 'q-sub' : 'att-sub').value;
+  const period = document.getElementById(isQuick ? 'q-period' : 'att-period').value;
+  const dateInput = document.getElementById('att-date');
+  const date = isQuick ? new Date().toISOString().split('T')[0] : (dateInput ? dateInput.value : new Date().toISOString().split('T')[0]);
+
+  if (!secLabel || !subName) {
+    UI.toast('Please select a valid section and subject.', 'warning');
+    return;
+  }
+
+  const subObj = DATA.getSubjects().find(s => s.name === subName || s.code === subName);
+  if (!subObj) {
+    UI.toast('Subject not found.', 'warning');
+    return;
+  }
+
+  // Check if session is already locked
+  if (DATA.isLocked(date, subObj.id, secLabel, period)) {
+    UI.toast('Attendance for this period is already locked.', 'error');
+    return;
+  }
+
+  // 1. Show class scan modal
+  document.getElementById('classScanModal').style.display = 'flex';
+  document.getElementById('scan-modal-details').textContent = `Scanning Section: ${secLabel} | Subject: ${subName} (Period ${period})`;
+  const video = document.getElementById('scan-stream-video');
+  const canvas = document.getElementById('scan-stream-canvas');
+  video.style.display = 'none';
+  canvas.style.display = 'none';
+  document.getElementById('scan-stream-loader').style.display = 'block';
+  document.getElementById('scan-status-alert').className = 'alert alert-info';
+  document.getElementById('scan-status-alert').textContent = 'Requesting camera access...';
+  
+  const progressBar = document.getElementById('scan-progress-bar');
+  progressBar.style.transition = 'none';
+  progressBar.style.width = '100%';
+  setTimeout(() => { progressBar.style.transition = 'width 1s linear'; }, 50);
+
+  const FRS_BASE = 'http://127.0.0.1:8000/api';
+  const duration = 20; // 20 seconds is plenty for a test scan!
+
+  // 2. Trigger scan API call
+  fetch(`${FRS_BASE}/scan/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      section: secLabel,
+      subjectId: subObj.id,
+      period: period,
+      date: date,
+      duration: duration
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to trigger scan.');
+    }
+    
+    // Start WebRTC Camera
+    return navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+  })
+  .then(stream => {
+    localStream = stream;
+    video.srcObject = stream;
+    video.style.display = 'block';
+    canvas.style.display = 'block';
+    document.getElementById('scan-stream-loader').style.display = 'none';
+    document.getElementById('scan-status-alert').textContent = 'Classroom scanning in progress... Look at the camera.';
+    
+    // Setup temporary canvas for frame extraction
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 640;
+    tempCanvas.height = 480;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    const displayCtx = canvas.getContext('2d');
+
+    // Start frame sending loop (approx 2-3 FPS)
+    frameInterval = setInterval(() => {
+      if(video.readyState === video.HAVE_ENOUGH_DATA) {
+        // Match canvas dimensions to video
+        if(canvas.width !== video.clientWidth) {
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+        }
+
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+        const base64Img = tempCanvas.toDataURL('image/jpeg', 0.8);
+
+        fetch(`${FRS_BASE}/scan/frame`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Img })
+        })
+        .then(r => r.json())
+        .then(result => {
+            if(result.success && result.faces) {
+                // Draw overlays
+                displayCtx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Scale coordinates
+                const scaleX = canvas.width / 640;
+                const scaleY = canvas.height / 480;
+
+                result.faces.forEach(face => {
+                    const top = face.loc[0] * scaleY;
+                    const right = face.loc[1] * scaleX;
+                    const bottom = face.loc[2] * scaleY;
+                    const left = face.loc[3] * scaleX;
+                    
+                    displayCtx.strokeStyle = face.color;
+                    displayCtx.lineWidth = 2;
+                    displayCtx.strokeRect(left, top, right - left, bottom - top);
+                    
+                    displayCtx.fillStyle = face.color;
+                    displayCtx.font = "14px Arial";
+                    displayCtx.fillText(face.label, left, top - 5);
+                });
+            }
+        }).catch(e => console.error("Frame processing error:", e));
+      }
+    }, 400); // 400ms = 2.5 FPS
+
+    // Start progress countdown
+    classScanSecondsRemaining = duration;
+    if (classScanTimer) clearInterval(classScanTimer);
+    classScanTimer = setInterval(() => {
+      classScanSecondsRemaining--;
+      const pct = (classScanSecondsRemaining / duration) * 100;
+      progressBar.style.width = `${pct}%`;
+      document.getElementById('scan-status-alert').textContent = `Classroom scanning... ${classScanSecondsRemaining}s remaining.`;
+      
+      if (classScanSecondsRemaining <= 0) {
+        clearInterval(classScanTimer);
+        closeClassScanModal();
+        UI.toast('Classroom scan completed! Refreshing list...', 'success');
+        
+        // Wait 1.5 seconds for backend REST API sync, then refresh local UI
+        setTimeout(() => {
+          DATA.refreshCache().then(() => {
+            if (isQuick) loadQuickGrid(); else loadAttGrid();
+          });
+        }, 1500);
+      }
+    }, 1000);
+  })
+  .catch(err => {
+    document.getElementById('scan-stream-loader').style.display = 'none';
+    const alertEl = document.getElementById('scan-status-alert');
+    alertEl.className = 'alert alert-danger';
+    alertEl.textContent = 'Error: ' + err.message + ' (Make sure FRS server is running & camera is allowed)';
+  });
+}
+
+function closeClassScanModal() {
+  if (classScanTimer) clearInterval(classScanTimer);
+  if (frameInterval) clearInterval(frameInterval);
+  if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      localStream = null;
+  }
+  classScanTimer = null;
+  frameInterval = null;
+  const video = document.getElementById('scan-stream-video');
+  video.pause();
+  video.srcObject = null;
+  const canvas = document.getElementById('scan-stream-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  document.getElementById('classScanModal').style.display = 'none';
 }
 
 // ── Init ──
