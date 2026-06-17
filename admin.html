@@ -761,7 +761,7 @@ async function forceTestAttendance(section, subjectId, periodId) {
     try {
         UI.toast(`Triggering background scan for ${testDate}...`, 'info');
         
-        const res = await fetch('http://127.0.0.1:10000/api/scan/trigger', {
+        const res = await fetch('http://127.0.0.1:8000/api/scan/trigger', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -852,7 +852,7 @@ async function saveCamera() {
       <div class="modal-content" style="max-width:700px; text-align:center; background:#1e293b; color:white; border: 1px solid #334155;">
         <h3 style="margin-top:0; color:#38bdf8;">Live Camera Preview</h3>
         <p style="color:#94a3b8; font-size:14px; margin-bottom:15px;">Please verify the camera angle for Room ${room} (${branch} ${year} YR S${semester} ${secL})</p>
-        <img id="livePreviewImg" src="http://127.0.0.1:10000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}" style="width:100%; border-radius:8px; max-height: 400px; object-fit: cover; background:#0f172a;" onerror="this.onerror=null; this.alt='Stream unavailable or loading...'">
+        <img id="livePreviewImg" src="http://127.0.0.1:8000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}" style="width:100%; border-radius:8px; max-height: 400px; object-fit: cover; background:#0f172a;" onerror="this.onerror=null; this.alt='Stream unavailable or loading...'">
         <div style="margin-top: 15px; display:flex; justify-content:center; gap:10px;">
           <button class="btn btn-primary" onclick="closePreviewModal()">Looks Good (Close)</button>
         </div>
@@ -864,7 +864,7 @@ async function saveCamera() {
     
     let pollInterval = setInterval(() => {
       const img = document.getElementById('livePreviewImg');
-      if(img) img.src = `http://127.0.0.1:10000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}`;
+      if(img) img.src = `http://127.0.0.1:8000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}`;
     }, 1000); // 1 FPS to prevent overloading
     
     window.closePreviewModal = () => {
@@ -1314,7 +1314,7 @@ function downloadDetailed(fmt){
 }
 
 // ═══════════════ BIOMETRIC REGISTRATION ═══════════════
-const FRS_API_BASE = 'http://127.0.0.1:10000/api';
+const FRS_API_BASE = 'http://127.0.0.1:8000/api';
 let bioRegInterval = null;
 let bioRegStream = null;
 let currentBioRoll = null;
