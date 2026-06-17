@@ -56,6 +56,14 @@
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13"/></svg>
         <span>Subjects</span>
       </button>
+      <button class="nav-btn" data-page="timetable">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Timetable</span>
+      </button>
+      <button class="nav-btn" data-page="cameras">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span>Cameras</span>
+      </button>
       <div class="nav-group-label">Reports</div>
       <button class="nav-btn" data-page="reports">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -241,6 +249,51 @@
         <div class="card"><div class="table-wrap"><table>
           <thead><tr><th>Code</th><th>Name</th><th>Dept</th><th>Year</th><th>Sem</th><th>Actions</th></tr></thead>
           <tbody id="sub-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ TIMETABLE ═══ -->
+      <section class="page-section" id="sec-timetable">
+        <div class="sec-header">
+          <div><h2>Timetable</h2><p>Set period-wise subjects for each section for automated cameras</p></div>
+        </div>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label class="form-label">Branch</label>
+            <select class="form-control" id="tt-branch" style="width:170px" onchange="renderTimetable()"><option value="">Select Branch</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Year</label>
+            <select class="form-control" id="tt-year" style="width:110px" onchange="renderTimetable()">
+              <option value="">Select Year</option><option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semester</label>
+            <select class="form-control" id="tt-sem" style="width:110px" onchange="renderTimetable()">
+              <option value="">Select Sem</option><option value="1">Sem 1</option><option value="2">Sem 2</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Section</label>
+            <select class="form-control" id="tt-sec" style="width:130px" onchange="renderTimetable()"><option value="">Select Section</option></select>
+          </div>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Day</th><th>Period 1</th><th>Period 2</th><th>Period 3</th><th>Period 4</th><th>Period 5</th><th>Period 6</th><th>Action</th></tr></thead>
+          <tbody id="tt-tbody"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ═══ CAMERAS ═══ -->
+      <section class="page-section" id="sec-cameras">
+        <div class="sec-header">
+          <div><h2>Cameras</h2><p>Map IP cameras to physical rooms and sections</p></div>
+          <button class="btn btn-primary btn-sm" onclick="openCamModal()">+ Add Camera</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>IP Address / RTSP</th><th>Assigned Section</th><th>Room No.</th><th>Branch / Year / Sem</th><th>Actions</th></tr></thead>
+          <tbody id="cam-tbody"></tbody>
         </table></div></div>
       </section>
 
@@ -500,6 +553,49 @@
 </div>
 
 <div id="toast-container"></div>
+<!-- CAMERA MODAL -->
+<div class="modal-backdrop" id="camModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="cam-mtitle">Add Camera</h3><button class="modal-close" onclick="UI.closeModal('camModal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">IP Address / RTSP Link <span style="color:#ef4444">*</span></label><input class="form-control" id="cam-ip" placeholder="e.g. 192.168.0.112"></div>
+        <div class="form-group"><label class="form-label">Room No. <span style="color:#ef4444">*</span></label><input class="form-control" id="cam-room" placeholder="e.g. 301"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Section <span style="color:#ef4444">*</span></label><select class="form-control" id="cam-sec"></select></div>
+        <div class="form-group"><label class="form-label">Branch</label>
+          <select class="form-control" id="cam-branch">
+            <option value="">Select Branch</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Year</label>
+          <select class="form-control" id="cam-year">
+            <option value="">Select Year</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Semester</label>
+          <select class="form-control" id="cam-semester">
+            <option value="">Select Semester</option>
+            <option value="1">Sem 1</option>
+            <option value="2">Sem 2</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="UI.closeModal('camModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCamera()">Connect</button>
+    </div>
+  </div>
+</div>
+
 <script src="app.js"></script>
 <script>
 // ── Auth guard ──
@@ -518,7 +614,7 @@ function navTo(page) {
   document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+page)?.classList.add('active');
   document.getElementById('page-title').textContent = document.querySelector(`[data-page="${page}"] span`)?.textContent || page;
-  ({dashboard:loadDash,departments:renderDepts,sections:renderSections,hods:renderHods,staff:renderStaff,students:renderStudents,subjects:renderSubs,reports:initReports})[page]?.();
+  ({dashboard:loadDash,departments:renderDepts,sections:renderSections,hods:renderHods,staff:renderStaff,students:renderStudents,subjects:renderSubs,reports:initReports,timetable:renderTimetable,cameras:renderCameras})[page]?.();
 }
 document.querySelectorAll('.nav-btn[data-page]').forEach(b=>b.addEventListener('click',()=>navTo(b.dataset.page)));
 
@@ -537,8 +633,273 @@ function populateSelects() {
     const el = document.getElementById(id); if (el) el.innerHTML = wAll;
   });
   const secSel = document.getElementById('sec-dept-sel'); if (secSel) secSel.innerHTML = opts;
-  UI.populateSectionLetterSelect(['stu-fsec', 'rep-sec'], 'All Sections');
-  UI.populateSectionLetterSelect(['stu-sec'], 'Select Section');
+  const camBranchSel = document.getElementById('cam-branch'); if (camBranchSel) camBranchSel.innerHTML = '<option value="">Select Branch</option>' + opts;
+  const ttBranchSel = document.getElementById('tt-branch'); if (ttBranchSel) ttBranchSel.innerHTML = '<option value="">Select Branch</option>' + opts;
+  UI.populateSectionLetterSelect(['stu-fsec', 'rep-sec', 'cam-sec', 'tt-sec'], 'Select Section');
+}
+
+// ═══════════════ TIMETABLE MGMT ═══════════════
+let currentTimetable = [];
+async function renderTimetable() {
+  const branch = document.getElementById('tt-branch').value;
+  const year = document.getElementById('tt-year').value;
+  const sem = document.getElementById('tt-sem').value;
+  const secL = document.getElementById('tt-sec').value;
+  const tbody = document.getElementById('tt-tbody');
+  
+  if (!branch || !year || !sem || !secL) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px">Please select Branch, Year, Semester, and Section above to view/edit timetable.</td></tr>';
+    return;
+  }
+  const sec = `${branch}-${year}-${sem}-${secL}`;
+  const staffSecFormat = `${branch}-${year}${secL}-S${sem}`;
+  
+  try {
+    const res = await fetch(`${API_BASE}/timetable?section=${encodeURIComponent(sec)}`);
+    const data = await res.json();
+    if(data.success) currentTimetable = data.data;
+  } catch(e) { console.error(e); }
+
+  const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const subjects = DATA.getSubjects();
+  let subOpts = '<option value="">Free</option>' + subjects.map(s => `<option value="${s.id}|${s.name}">${s.name}</option>`).join('');
+
+  let html = '';
+  days.forEach(day => {
+    html += `<tr><td class="fw-600">${day}</td>`;
+    for(let p=1; p<=6; p++) {
+      const periodId = `Period ${p}`;
+      const entry = currentTimetable.find(t => t.day === day && t.period === periodId);
+      const selVal = entry ? `${entry.subjectId}|${entry.subjectName}` : '';
+      
+      let dd = `<select id="sel-${day}-Period${p}" class="form-control" style="width:120px; font-size:11px; padding:4px; margin-bottom:5px;">`;
+      let opts = subOpts;
+      if (entry) {
+        opts = opts.replace(`value="${selVal}"`, `value="${selVal}" selected`);
+      }
+      dd += opts + `</select>`;
+      
+      let testBtn = '';
+      if (entry) {
+          testBtn = `<button class="btn btn-sm" style="background:#8b5cf6; color:white; font-size:10px; padding:2px 5px;" onclick="forceTestAttendance('${staffSecFormat}', '${entry.subjectId}', '${periodId}')">⚡ Force Test</button>`;
+      }
+      
+      html += `<td>${dd}<br>${testBtn}</td>`;
+    }
+    html += `<td><button class="btn btn-primary btn-sm" onclick="submitTimetableRow('${day}')">Submit</button></td></tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+async function submitTimetableRow(day) {
+    const branch = document.getElementById('tt-branch').value;
+    const year = document.getElementById('tt-year').value;
+    const sem = document.getElementById('tt-sem').value;
+    const secL = document.getElementById('tt-sec').value;
+    if (!branch || !year || !sem || !secL) return;
+    const sec = `${branch}-${year}-${sem}-${secL}`;
+    const staffSecFormat = `${branch}-${year}${secL}-S${sem}`; // e.g. CSE-3B-S1
+    
+    const staffList = DATA.getTeachers() || [];
+    let warnings = [];
+    let updates = [];
+    
+    for(let p=1; p<=6; p++) {
+        const periodId = `Period ${p}`;
+        const sel = document.getElementById(`sel-${day}-Period${p}`);
+        if (!sel) continue;
+        
+        let subjectId = ''; let subjectName = '';
+        if (sel.value) {
+            const parts = sel.value.split('|');
+            subjectId = parts[0]; subjectName = parts[1];
+            
+            const hasTeacher = staffList.some(staff => 
+                staff.subjects && staff.subjects.includes(subjectName) && staff.sections && staff.sections.includes(staffSecFormat)
+            );
+            if (!hasTeacher) {
+                warnings.push(subjectName);
+            }
+        }
+        
+        updates.push({ section: sec, day, period: periodId, subjectId, subjectName });
+    }
+    
+    if (warnings.length > 0) {
+        // De-duplicate warnings array
+        warnings = [...new Set(warnings)];
+        const proceed = confirm(`⚠️ WARNING: No teacher is assigned to teach [ ${warnings.join(', ')} ] for ${sec}!\n\nIf you save this, the camera will mark automatic attendance but NO TEACHER will be able to view or lock it in their portal.\n\nDo you want to save this anyway (and assign a teacher later)?`);
+        if (!proceed) {
+            renderTimetable(); // Revert
+            return;
+        }
+    }
+    
+    try {
+        UI.toast(`Saving timetable for ${day}...`, 'info');
+        for (const update of updates) {
+            await fetch(`${API_BASE}/timetable`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(update)
+            });
+        }
+        UI.toast(`${day} timetable updated!`, 'success');
+        renderTimetable(); // Refresh to show the Force Test buttons
+    } catch (err) {
+        console.error(err);
+        UI.toast('Failed to save timetable', 'error');
+    }
+}
+
+async function forceTestAttendance(section, subjectId, periodId) {
+    const defaultDate = new Date().toISOString().split('T')[0];
+    const testDate = prompt(`⚡ FORCE TEST SCAN ⚡\n\nYou are about to trigger the camera to scan faces for 15 seconds for ${section} (${periodId}).\n\nEnter the DATE you want this attendance to be saved under (YYYY-MM-DD):`, defaultDate);
+    
+    if(!testDate) return; // User cancelled
+    
+    try {
+        UI.toast(`Triggering background scan for ${testDate}...`, 'info');
+        
+        const res = await fetch('http://127.0.0.1:10000/api/scan/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                section: section,
+                subjectId: subjectId,
+                period: periodId.replace('Period ', ''),
+                date: testDate,
+                duration: 15
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            UI.toast('Scan started! Sit in front of the camera for 15s.', 'success');
+        } else {
+            UI.toast(data.message || 'Scan failed', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        UI.toast('Failed to reach Python backend', 'error');
+    }
+}
+
+// ═══════════════ CAMERA MGMT ═══════════════
+let currentCameras = [];
+async function renderCameras() {
+  const tbody = document.getElementById('cam-tbody');
+  try {
+    const res = await fetch(`${API_BASE}/cameras`);
+    const data = await res.json();
+    if(data.success) currentCameras = data.data;
+  } catch(e) { console.error(e); }
+
+  if(currentCameras.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">No cameras assigned. Click + Add Camera to begin.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = currentCameras.map(c => `
+    <tr>
+      <td class="fw-600" style="color:var(--primary)">${c.ipAddress}</td>
+      <td><span class="pill pill-blue">${c.section}</span></td>
+      <td>${c.roomNumber || '-'}</td>
+      <td class="text-muted">${c.branch || '-'} / ${c.year ? c.year+' YR' : '-'} / ${c.semester ? 'S'+c.semester : '-'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteCamera('${c.ipAddress}')">Remove</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openCamModal() {
+  document.getElementById('cam-ip').value = '';
+  document.getElementById('cam-room').value = '';
+  document.getElementById('cam-branch').value = '';
+  UI.openModal('camModal');
+}
+
+async function saveCamera() {
+  const ip = document.getElementById('cam-ip').value.trim();
+  const secL = document.getElementById('cam-sec').value;
+  const room = document.getElementById('cam-room').value.trim();
+  const branch = document.getElementById('cam-branch').value.trim();
+  const year = document.getElementById('cam-year').value.trim();
+  const semester = document.getElementById('cam-semester').value.trim();
+  
+  if(!ip || !secL || !room || !branch || !year || !semester) return UI.toast('All fields (including Branch, Year, Sem) are required', 'warning');
+  
+  const sec = `${branch}-${year}-${semester}-${secL}`;
+  
+  try {
+    const res = await fetch(`${API_BASE}/cameras`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ipAddress: ip, section: sec, roomNumber: room, branch, year, semester })
+    });
+    const data = await res.json();
+    
+    if(!data.success) {
+      return UI.toast(data.message || 'Failed to connect to camera', 'error');
+    }
+    
+    UI.closeModal('camModal');
+    UI.toast('Camera connected successfully!', 'success');
+    
+    // Show 10-Second Live Preview (Snapshot Polling)
+    const previewHtml = `
+    <div id="previewModal" class="modal active" style="z-index:9999; display:flex; background:rgba(0,0,0,0.8);">
+      <div class="modal-content" style="max-width:700px; text-align:center; background:#1e293b; color:white; border: 1px solid #334155;">
+        <h3 style="margin-top:0; color:#38bdf8;">Live Camera Preview</h3>
+        <p style="color:#94a3b8; font-size:14px; margin-bottom:15px;">Please verify the camera angle for Room ${room} (${branch} ${year} YR S${semester} ${secL})</p>
+        <img id="livePreviewImg" src="http://127.0.0.1:10000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}" style="width:100%; border-radius:8px; max-height: 400px; object-fit: cover; background:#0f172a;" onerror="this.onerror=null; this.alt='Stream unavailable or loading...'">
+        <div style="margin-top: 15px; display:flex; justify-content:center; gap:10px;">
+          <button class="btn btn-primary" onclick="closePreviewModal()">Looks Good (Close)</button>
+        </div>
+        <p style="color:#ef4444; font-size:12px; margin-top:10px;">Preview auto-closes in 10 seconds...</p>
+      </div>
+    </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', previewHtml);
+    
+    let pollInterval = setInterval(() => {
+      const img = document.getElementById('livePreviewImg');
+      if(img) img.src = `http://127.0.0.1:10000/api/cctv/snapshot?url=${encodeURIComponent(ip)}&t=${Date.now()}`;
+    }, 1000); // 1 FPS to prevent overloading
+    
+    window.closePreviewModal = () => {
+      clearInterval(pollInterval);
+      const pm = document.getElementById('previewModal');
+      if(pm) pm.remove();
+    };
+    
+    setTimeout(() => {
+      closePreviewModal();
+    }, 10000);
+    
+    // Play voice confirmation!
+    if ('speechSynthesis' in window) {
+      const yearText = year === '1' ? '1st' : year === '2' ? '2nd' : year === '3' ? '3rd' : '4th';
+      const speechText = `Camera successfully connected to room ${room}, for ${branch} ${yearText} year.`;
+      const utterance = new SpeechSynthesisUtterance(speechText);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.1;
+      window.speechSynthesis.speak(utterance);
+    }
+    
+    renderCameras();
+  } catch(e) {
+    UI.toast('Failed to save camera mapping', 'error');
+  }
+}
+
+async function deleteCamera(ip) {
+  if(!confirm(`Remove camera mapping for IP: ${ip}?`)) return;
+  try {
+    await fetch(`${API_BASE}/cameras/${encodeURIComponent(ip)}`, { method: 'DELETE' });
+    UI.toast('Camera mapping removed', 'success');
+    renderCameras();
+  } catch(e) { UI.toast('Error removing mapping', 'error'); }
 }
 
 // ═══════════════ SYSTEM MGMT ═══════════════
@@ -953,7 +1314,7 @@ function downloadDetailed(fmt){
 }
 
 // ═══════════════ BIOMETRIC REGISTRATION ═══════════════
-const FRS_API_BASE = 'http://localhost:8000/api';
+const FRS_API_BASE = 'http://127.0.0.1:10000/api';
 let bioRegInterval = null;
 let bioRegStream = null;
 let currentBioRoll = null;
@@ -1065,7 +1426,7 @@ async function startBioReg() {
                         closeBioRegModal(true); // Close but keep success toast
                     } else {
                         // Update progress bar implicitly based on parsing message (samples_count/10)
-                        const m = result.message.match(/\\((\\d+)\\/10\\)/);
+                        const m = result.message.match(/\((\d+)\/10\)/);
                         if (m) {
                             const pct = Math.min(100, (parseInt(m[1]) / 10) * 100);
                             document.getElementById('bio-progress-bar').style.width = `${pct}%`;

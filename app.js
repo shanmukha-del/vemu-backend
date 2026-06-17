@@ -1414,10 +1414,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Real-time Updates via Server-Sent Events ---
 if (window.EventSource) {
-  const evtSource = new EventSource('http://localhost:3000/api/stream');
-  evtSource.onmessage = function(event) {
+  const evtSource = new EventSource(`${API_BASE}/stream`);
+  
+  evtSource.addEventListener('attendance_updated', async (e) => {
     try {
-      const data = JSON.parse(event.data);
+      const data = JSON.parse(e.data);
       if (data.event === 'attendance_updated') {
         // Refresh local cache and trigger UI reload
         DATA.refreshCache().then(() => {
