@@ -3,22 +3,20 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
-
+let sseClients = [];
 // 0. Middleware & CORS (Top Priority)
 app.use(cors({
-    origin: [
-        'https://vemuams.netlify.app',
-        'http://localhost:5000',
-        'http://127.0.0.1:5503',
-        'http://127.0.0.1:5500',
-        'http://localhost:3000',
-        'http://localhost:5173'
-    ],
+    origin: function (origin, callback) {
+        callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 app.use(express.json());
+
+// Serve static frontend files (HTML, CSS, JS) to prevent file:/// CORS issues
+app.use(express.static(__dirname));
 
 // 0.2 Request Logger (For Debugging & Demo)
 app.use((req, res, next) => {
@@ -81,6 +79,13 @@ const Attendance = mongoose.model('Attendance', attendanceSchema);
 
 const lockSchema = new mongoose.Schema({ lockKey: { type: String, unique: true }, lockedAt: { type: Date, default: Date.now }, userId: String });
 const Lock = mongoose.model('Lock', lockSchema);
+
+const cameraSchema = new mongoose.Schema({ ipAddress: { type: String, unique: true }, section: String, roomNumber: String, branch: String, year: String, semester: String });
+const Camera = mongoose.model('Camera', cameraSchema);
+
+const timetableSchema = new mongoose.Schema({ section: String, day: String, period: String, subjectId: String, subjectName: String });
+timetableSchema.index({ section: 1, day: 1, period: 1 }, { unique: true });
+const Timetable = mongoose.model('Timetable', timetableSchema);
 
 // 3. Cleanup
 async function cleanupDatabase() {
@@ -188,6 +193,19 @@ app.get('/api/attendance', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// --- Server-Sent Events (SSE) Endpoint for Real-time Updates ---
+app.get('/api/stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // Establish the connection immediately
+
+    sseClients.push(res);
+    req.on('close', () => {
+        sseClients = sseClients.filter(client => client !== res);
+    });
+});
+
 app.post('/api/attendance/save', async (req, res) => {
     try {
         const { date, subjectId, section, period, records, teacherId } = req.body;
@@ -204,6 +222,14 @@ app.post('/api/attendance/save', async (req, res) => {
         // 2. Create new session
         const result = new Attendance({ date, subjectId, section, period, records, lockedAt: new Date(), lockedBy: teacherId });
         await result.save();
+
+        // Broadcast real-time update to all connected clients
+        sseClients.forEach(client => {
+            try {
+                client.write(`data: ${JSON.stringify({ event: 'attendance_updated', period })}\n\n`);
+            } catch(e) {}
+        });
+
         res.json({ success: true, data: result });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -245,7 +271,8 @@ app.post('/api/admin/clear-attendance', async (req, res) => {
 app.get('/api/attendance/previous', async (req, res) => {
     try {
         const { date, section, currentPeriod } = req.query;
-        const prevPeriod = (parseInt(currentPeriod) - 1).toString();
+        const currentPeriodNum = parseInt(currentPeriod.replace('Period ', ''));
+        const prevPeriod = `Period ${currentPeriodNum - 1}`;
         const record = await Attendance.findOne({ date, section, period: prevPeriod }).lean();
         if (record) res.json({ success: true, records: record.records });
         else res.json({ success: false });
@@ -280,7 +307,7 @@ app.get('/api/attendance/reports', async (req, res) => {
             { $match: { "records.k": { $in: studentIds } } },
             { $group: { 
                 _id: { sid: "$records.k", sub: "$subjectId" }, 
-                p: { $sum: { $cond: [{ $eq: ["$records.v", "present"] }, 1, 0] } }, 
+                p: { $sum: { $cond: [{ $eq: [{ $toLower: "$records.v" }, "present"] }, 1, 0] } }, 
                 t: { $sum: 1 } 
             } }
         ]);
@@ -322,6 +349,134 @@ app.post('/api/students/bulk-promote', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+
+// --- Timetable API ---
+app.get('/api/timetable', async (req, res) => {
+    try {
+        const { section, day } = req.query;
+        const query = {};
+        if (section) query.section = section;
+        if (day) query.day = day;
+        const data = await Timetable.find(query);
+        res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+app.post('/api/timetable', async (req, res) => {
+    try {
+        const { section, day, period, subjectId, subjectName } = req.body;
+        const result = await Timetable.findOneAndUpdate(
+            { section, day, period },
+            { subjectId, subjectName },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true, data: result });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+const { exec } = require('child_process');
+const onvif = require('node-onvif');
+
+function pingHost(host) {
+    return new Promise((resolve) => {
+        // Parse host if it's an RTSP or HTTP url
+        let target = host;
+        const match = host.match(/(?:rtsp|http|https):\/\/(?:[^:]+:[^@]+@)?([a-zA-Z0-9.-]+)/);
+        if (match) target = match[1];
+        
+        // ping -n 1 -w 2000 (Windows ping: 1 packet, 2000ms timeout)
+        exec(`ping -n 1 -w 2000 ${target}`, (error, stdout, stderr) => {
+            if (error || stdout.includes('Destination host unreachable') || stdout.includes('could not find host') || stdout.includes('Request timed out')) {
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
+}
+
+// --- Camera Mapping API ---
+app.get('/api/cameras', async (req, res) => {
+    try {
+        const data = await Camera.find({});
+        res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+app.post('/api/cameras', async (req, res) => {
+    try {
+        const { ipAddress, section, roomNumber, branch, year, semester } = req.body;
+        
+        // Very basic network verification
+        const isReachable = await pingHost(ipAddress);
+        if (!isReachable) {
+            return res.status(400).json({ success: false, message: "Camera unreachable! Please check the IP Address/RTSP Link and ensure the camera is powered on and connected to the network." });
+        }
+        
+        const result = await Camera.findOneAndUpdate(
+            { ipAddress },
+            { section, roomNumber, branch, year, semester },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true, data: result });
+        
+        // Physical PTZ Rotation Acknowledgment
+        (async () => {
+            try {
+                let host = ipAddress;
+                let user = 'admin';
+                let pass = '';
+                
+                const match = ipAddress.match(/(?:rtsp|http|https):\/\/([^:]+):([^@]+)@([a-zA-Z0-9.-]+)/);
+                if (match) {
+                    user = match[1];
+                    pass = match[2];
+                    host = match[3];
+                } else {
+                    const ipMatch = ipAddress.match(/(?:rtsp|http|https):\/\/([a-zA-Z0-9.-]+)/);
+                    if (ipMatch) host = ipMatch[1];
+                }
+                
+                const ports = [80, 8899, 5000, 10080, 8080];
+                let connectedDevice = null;
+                
+                for (let port of ports) {
+                    let device = new onvif.OnvifDevice({
+                        xaddr: `http://${host}:${port}/onvif/device_service`,
+                        user: user,
+                        pass: pass
+                    });
+                    try {
+                        await device.init();
+                        connectedDevice = device;
+                        console.log(`[ONVIF] Successfully connected to ${host} on port ${port}`);
+                        break;
+                    } catch (e) {
+                        // Silently try next port
+                    }
+                }
+                
+                if (connectedDevice && connectedDevice.services.ptz) {
+                    console.log(`[ONVIF] Rotating Camera ${host} to acknowledge connection!`);
+                    await connectedDevice.ptzMove({ 'speed': { x: 1.0, y: 0.0, z: 0.0 }, 'timeout': 1 });
+                    setTimeout(async () => {
+                        await connectedDevice.ptzMove({ 'speed': { x: -1.0, y: 0.0, z: 0.0 }, 'timeout': 1 }).catch(()=>{});
+                    }, 1000);
+                } else {
+                    console.log(`[ONVIF] Camera ${host} does not support ONVIF, has wrong credentials, or PTZ is disabled.`);
+                }
+                
+            } catch(e) {
+                console.log("ONVIF Wrapper Error:", e.message);
+            }
+        })();
+        
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+app.delete('/api/cameras/:ip', async (req, res) => {
+    try {
+        await Camera.findOneAndDelete({ ipAddress: req.params.ip });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
 
 // 6. Global 404 JSON Guard (Prevents SyntaxError: Unexpected token <)
 app.use((req, res) => {

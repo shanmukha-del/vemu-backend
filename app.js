@@ -10,9 +10,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
 }
 
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:3000/api'
-  : 'https://vemu-backend.onrender.com/api';
+const API_BASE_URL = 'https://vemu-backend.onrender.com/api';
 
 const API_BASE = API_BASE_URL.replace(/\/$/, ""); // Ensure no trailing slash
 
@@ -408,18 +406,18 @@ const DATA = {
   // Attendance
   getAttendance() { return this._cache.attendance; },
 
-  getSessionAtt(date, subId, period = "1") {
+  getSessionAtt(date, subId, period = "Period 1") {
     const a = this.getAttendance();
     return (a[date] && a[date][subId] && a[date][subId][period]) ? a[date][subId][period] : {};
   },
 
-  isLocked(date, subId, section, period = "1") {
+  isLocked(date, subId, section, period = "Period 1") {
     const a = this.getAttendance();
     // A period is locked if a record exists for this unique combination
     return !!(a[date] && a[date][subId] && a[date][subId][period]);
   },
 
-  getLockInfo(date, subId, section, period = "1") {
+  getLockInfo(date, subId, section, period = "Period 1") {
     const a = this.getAttendance();
     const record = (a[date] && a[date][subId] && a[date][subId][period]);
     if (record) {
@@ -433,7 +431,7 @@ const DATA = {
     return null;
   },
 
-  async saveSessionAtt(date, subId, records, section, lockedBy, period = "1") {
+  async saveSessionAtt(date, subId, records, section, lockedBy, period = "Period 1") {
     const res = await apiCall('/attendance/save', 'POST', { date, subjectId: subId, records, section, lockedBy, period });
     if (res && res.success) {
       await this.refreshCache();
@@ -461,8 +459,9 @@ const DATA = {
           Object.values(subPeriods).forEach(records => {
             if (records && typeof records === 'object' && records[studentId] !== undefined) {
               total++;
-              if (records[studentId] === 'present') present++;
-              else absent++;
+              const status = String(records[studentId]).toLowerCase();
+              if (status === 'present') present++;
+              else if (status === 'absent') absent++;
             }
           });
         });
@@ -539,8 +538,9 @@ const DATA = {
           Object.values(day[subjectId]).forEach(records => {
             if (records && typeof records === 'object' && records[studentId] !== undefined) {
               total++;
-              if (records[studentId] === 'present') present++;
-              else absent++;
+              const status = String(records[studentId]).toLowerCase();
+              if (status === 'present') present++;
+              else if (status === 'absent') absent++;
             }
           });
         }
@@ -1411,3 +1411,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+// --- Real-time Updates via Server-Sent Events ---
+if (window.EventSource) {
+  const evtSource = new EventSource('http://localhost:3000/api/stream');
+  evtSource.onmessage = function(event) {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.event === 'attendance_updated') {
+        // Refresh local cache and trigger UI reload
+        DATA.refreshCache().then(() => {
+          if (typeof loadQuickGrid === 'function') loadQuickGrid();
+          if (typeof loadAttGrid === 'function') loadAttGrid();
+          if (UI && UI.toast) UI.toast(`⚡ Live Update: FRS Scanner just locked ${data.period}!`, 'success');
+        });
+      }
+    } catch(e) {
+      console.error('SSE Error:', e);
+    }
+  };
+}

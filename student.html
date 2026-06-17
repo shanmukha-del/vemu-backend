@@ -379,8 +379,9 @@ function renderCalendar() {
     const d=all[ds]||{}; let p=0,ab=0;
     Object.values(d).forEach(periods => {
       Object.values(periods).forEach(records => {
-        if(records[myId] === 'present') p++;
-        else if(records[myId] === 'absent') ab++;
+        const st = String(records[myId] || '').toLowerCase();
+        if(st === 'present') p++;
+        else if(st === 'absent') ab++;
       });
     });
     if(!p&&!ab)return'none';
