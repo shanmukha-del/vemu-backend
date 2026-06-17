@@ -374,8 +374,7 @@ app.post('/api/timetable', async (req, res) => {
 });
 
 const { exec } = require('child_process');
-const onvif = require('node-onvif');
-
+// node-onvif removed for Cloud compatibility
 function pingHost(host) {
     return new Promise((resolve) => {
         // Parse host if it's an RTSP or HTTP url
@@ -405,8 +404,8 @@ app.post('/api/cameras', async (req, res) => {
     try {
         const { ipAddress, section, roomNumber, branch, year, semester } = req.body;
         
-        // Very basic network verification
-        const isReachable = await pingHost(ipAddress);
+        // Skip ping verification on Cloud Server since it cannot reach local IPs
+        const isReachable = true;
         if (!isReachable) {
             return res.status(400).json({ success: false, message: "Camera unreachable! Please check the IP Address/RTSP Link and ensure the camera is powered on and connected to the network." });
         }
@@ -426,48 +425,7 @@ app.post('/api/cameras', async (req, res) => {
                 let pass = '';
                 
                 const match = ipAddress.match(/(?:rtsp|http|https):\/\/([^:]+):([^@]+)@([a-zA-Z0-9.-]+)/);
-                if (match) {
-                    user = match[1];
-                    pass = match[2];
-                    host = match[3];
-                } else {
-                    const ipMatch = ipAddress.match(/(?:rtsp|http|https):\/\/([a-zA-Z0-9.-]+)/);
-                    if (ipMatch) host = ipMatch[1];
-                }
-                
-                const ports = [80, 8899, 5000, 10080, 8080];
-                let connectedDevice = null;
-                
-                for (let port of ports) {
-                    let device = new onvif.OnvifDevice({
-                        xaddr: `http://${host}:${port}/onvif/device_service`,
-                        user: user,
-                        pass: pass
-                    });
-                    try {
-                        await device.init();
-                        connectedDevice = device;
-                        console.log(`[ONVIF] Successfully connected to ${host} on port ${port}`);
-                        break;
-                    } catch (e) {
-                        // Silently try next port
-                    }
-                }
-                
-                if (connectedDevice && connectedDevice.services.ptz) {
-                    console.log(`[ONVIF] Rotating Camera ${host} to acknowledge connection!`);
-                    await connectedDevice.ptzMove({ 'speed': { x: 1.0, y: 0.0, z: 0.0 }, 'timeout': 1 });
-                    setTimeout(async () => {
-                        await connectedDevice.ptzMove({ 'speed': { x: -1.0, y: 0.0, z: 0.0 }, 'timeout': 1 }).catch(()=>{});
-                    }, 1000);
-                } else {
-                    console.log(`[ONVIF] Camera ${host} does not support ONVIF, has wrong credentials, or PTZ is disabled.`);
-                }
-                
-            } catch(e) {
-                console.log("ONVIF Wrapper Error:", e.message);
-            }
-        })();
+        res.json({ success: true, message: 'Camera added (Ping disabled on Cloud Server)' });
         
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
