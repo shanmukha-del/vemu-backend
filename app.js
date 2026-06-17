@@ -1430,5 +1430,5 @@ if (window.EventSource) {
     } catch(e) {
       console.error('SSE Error:', e);
     }
-  };
+  });
 }
