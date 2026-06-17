@@ -410,22 +410,13 @@ app.post('/api/cameras', async (req, res) => {
             return res.status(400).json({ success: false, message: "Camera unreachable! Please check the IP Address/RTSP Link and ensure the camera is powered on and connected to the network." });
         }
         
-        const result = await Camera.findOneAndUpdate(
-            { ipAddress },
-            { section, roomNumber, branch, year, semester },
-            { upsert: true, new: true }
-        );
-        res.json({ success: true, data: result });
-        
-        // Physical PTZ Rotation Acknowledgment
-        (async () => {
-            try {
-                let host = ipAddress;
-                let user = 'admin';
-                let pass = '';
-                
-                const match = ipAddress.match(/(?:rtsp|http|https):\/\/([^:]+):([^@]+)@([a-zA-Z0-9.-]+)/);
-        res.json({ success: true, message: 'Camera added (Ping disabled on Cloud Server)' });
+        const cam = new Camera({
+            ipAddress, rtspLink, location, section, username, password,
+            status: 'online', // Default to online since cloud ping is disabled
+            lastChecked: new Date()
+        });
+        await cam.save();
+        res.json({ success: true, message: 'Camera added (Ping disabled on Cloud Server)', data: cam });
         
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
