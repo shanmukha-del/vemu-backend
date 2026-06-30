@@ -184,12 +184,23 @@ app.get('/api/attendance', async (req, res) => {
     try {
         const all = await Attendance.find().lean();
         const formatted = {};
+        const locks = [];
         all.forEach(a => {
             if (!formatted[a.date]) formatted[a.date] = {};
             if (!formatted[a.date][a.subjectId]) formatted[a.date][a.subjectId] = {};
             formatted[a.date][a.subjectId][a.period || "1"] = a.records;
+            
+            if (a.subjectId !== 'FRS_SERVER_IP') {
+                locks.push({
+                    date: a.date,
+                    subjectId: a.subjectId,
+                    section: a.section,
+                    period: a.period || "1",
+                    lockedBy: a.lockedBy || 'Faculty'
+                });
+            }
         });
-        res.json({ success: true, data: formatted });
+        res.json({ success: true, data: formatted, locks: locks });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -211,7 +222,7 @@ app.post('/api/attendance/save', async (req, res) => {
         const { date, subjectId, section, period, records, teacherId } = req.body;
         
         // 1. Strict Lock Check: Verify if attendance for this specific session already exists
-        const existing = await Attendance.findOne({ date, subjectId, section, period });
+        const existing = await Attendance.findOne({ date, section, period, subjectId: { $ne: 'FRS_SERVER_IP' } });
         if (existing) {
             return res.status(403).json({ 
                 success: false, 

@@ -145,8 +145,8 @@ const AUTH = {
   getSession() { return DB.get('session'); },
   clearSession() { DB.del('session'); },
   redirectByRole(role) {
-    const map = { admin: 'admin.html', hod: 'hod.html', teacher: 'teacher.html', student: 'student.html' };
-    window.location.href = map[role] || 'index.html';
+      const map = { admin: 'admin.html', hod: 'hod.html', teacher: 'teacher.html', student: 'student.html' };
+      window.location.href = map[role] || 'vemu.html';
   }
 };
 
@@ -187,7 +187,29 @@ const DATA = {
       if (results[3]?.success) this._cache.sections = results[3].data;
       if (results[4]?.success) this._cache.students = results[4].data;
       if (results[5]?.success) this._cache.subjects = results[5].data;
-      if (results[6]?.success) this._cache.attendance = results[6].data;
+      if (results[6]?.success) {
+          let attData = results[6].data;
+          this._cache.locks = results[6].locks || [];
+          const studentsList = this._cache.students || [];
+          // Sanitize AI Camera array records to dictionary
+          Object.keys(attData).forEach(date => {
+              Object.keys(attData[date]).forEach(subId => {
+                  Object.keys(attData[date][subId]).forEach(period => {
+                      let rec = attData[date][subId][period];
+                      if (subId === 'FRS_SERVER_IP') {
+                          // Preserve the IP array for dynamic setup
+                      } else if (Array.isArray(rec)) {
+                          let mapped = {};
+                          studentsList.forEach(s => {
+                              mapped[s.id] = rec.includes(s.roll) ? "present" : "absent";
+                          });
+                          attData[date][subId][period] = mapped;
+                      }
+                  });
+              });
+          });
+          this._cache.attendance = attData;
+      }
       if (results[7]?.success) this._cache.locks = results[7].data;
       
       window.dispatchEvent(new CustomEvent('vemu_data_changed'));
@@ -408,27 +430,31 @@ const DATA = {
 
   getSessionAtt(date, subId, period = "Period 1") {
     const a = this.getAttendance();
-    return (a[date] && a[date][subId] && a[date][subId][period]) ? a[date][subId][period] : {};
+    const p1 = period;
+    const p2 = String(period).replace('Period ', '');
+    if (a[date] && a[date][subId]) {
+      return a[date][subId][p1] || a[date][subId][p2] || {};
+    }
+    return {};
   },
 
   isLocked(date, subId, section, period = "Period 1") {
-    const a = this.getAttendance();
-    // A period is locked if a record exists for this unique combination
-    return !!(a[date] && a[date][subId] && a[date][subId][period]);
+    const p = String(period).replace('Period ', '');
+    if (subId === 'FRS_SERVER_IP') return false;
+    return !!this._cache.locks?.some(l => 
+        l.date === date && 
+        l.section === section && 
+        (l.period === period || l.period === p)
+    );
   },
 
   getLockInfo(date, subId, section, period = "Period 1") {
-    const a = this.getAttendance();
-    const record = (a[date] && a[date][subId] && a[date][subId][period]);
-    if (record) {
-      // Find the metadata if it's stored differently or just return a default
-      // In server.js, Attendance model has lockedBy and lockedAt
-      // Our local cache currently just points to the records map.
-      // We might need to ensure the cache includes metadata.
-      // For now, we'll return a placeholder until we verify cache structure.
-      return { lockedBy: "Faculty" }; 
-    }
-    return null;
+    const p = String(period).replace('Period ', '');
+    return this._cache.locks?.find(l => 
+        l.date === date && 
+        l.section === section && 
+        (l.period === period || l.period === p)
+    ) || null;
   },
 
   async saveSessionAtt(date, subId, records, section, lockedBy, period = "Period 1") {
@@ -768,8 +794,8 @@ const UI = {
 
   requireAuth(role) {
     const s = AUTH.getSession();
-    if (!s) { window.location.href = 'index.html'; return null; }
-    if (role && s.role !== role) { window.location.href = 'index.html'; return null; }
+    if (!s) { window.location.href = 'vemu.html'; return null; }
+    if (role && s.role !== role) { window.location.href = 'vemu.html'; return null; }
     return s;
   },
 
@@ -1333,7 +1359,7 @@ const EXPORT = {
 
 
 
-function logout() { AUTH.clearSession(); window.location.href = 'index.html'; }
+function logout() { AUTH.clearSession(); window.location.href = 'vemu.html'; }
 
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-backdrop')) e.target.classList.remove('open');
