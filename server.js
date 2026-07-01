@@ -283,8 +283,9 @@ app.get('/api/attendance/previous', async (req, res) => {
     try {
         const { date, section, currentPeriod } = req.query;
         const currentPeriodNum = parseInt(currentPeriod.replace('Period ', ''));
-        const prevPeriod = `Period ${currentPeriodNum - 1}`;
-        const record = await Attendance.findOne({ date, section, period: prevPeriod }).lean();
+        const p1 = `Period ${currentPeriodNum - 1}`;
+        const p2 = String(currentPeriodNum - 1);
+        const record = await Attendance.findOne({ date, section, period: { $in: [p1, p2] } }).lean();
         if (record) res.json({ success: true, records: record.records });
         else res.json({ success: false });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
