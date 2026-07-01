@@ -1,10 +1,14 @@
-﻿import time
+import time
+import os
 import numpy as np
 import cv2
 import logging
 import base64
+import socket
+import requests
+import threading
 from fastapi import FastAPI, BackgroundTasks, Query, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import config
@@ -13,11 +17,52 @@ import face_recognition
 from recognizer import FaceRecognizer
 from anti_spoofing import AntiSpoofingClassifier
 from scheduler import PassiveAttendanceScheduler
+from cctv_processor import cctv_processor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("FastAPI")
 
 app = FastAPI(title="VEMU Face Recognition System Service", version="2.0.0")
+
+@app.on_event("startup")
+def startup_event():
+    vemu_ascii = """\033[94m
+ __      __  ______   __  __   _    _ 
+ \ \    / / |  ____| |  \/  | | |  | |
+  \ \  / /  | |__    | \  / | | |  | |
+   \ \/ /   |  __|   | |\/| | | |  | |
+    \  /    | |____  | |  | | | |__| |
+     \/     |______| |_|  |_|  \____/ 
+                                      \033[0m"""
+    print(vemu_ascii)
+    print("\033[94m***************** VEMU INSTITUTE OF TECHNOLOGY ******************\033[0m")
+    print("\033[96m******** WELCOME TO VEMU FRS SYSTEM BACKEND ***********\033[0m\n")
+    cctv_processor.start()
+    attendance_scheduler.schedule_cron_jobs()
+    threading.Thread(target=publish_frs_ip, daemon=True).start()
+
+def publish_frs_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        logger.info(f"Detected FRS Local IP: {ip}. Publishing to MERN Backend...")
+        payload = {
+            "date": "2099-01-01",
+            "subjectId": "FRS_SERVER_IP",
+            "section": "SYSTEM",
+            "period": "1",
+            "records": [ip]
+        }
+        requests.post(f"{config.MERN_BACKEND_URL}/api/attendance/save", json=payload, timeout=5)
+        logger.info("FRS IP successfully published to MERN backend for auto-discovery.")
+    except Exception as e:
+        logger.error(f"Failed to publish FRS IP: {e}")
+
+@app.on_event("shutdown")
+def shutdown_event():
+    cctv_processor.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +75,7 @@ app.add_middleware(
 recognizer = FaceRecognizer()
 anti_spoofer = AntiSpoofingClassifier()
 attendance_scheduler = PassiveAttendanceScheduler()
+cctv_processor.set_dependencies(attendance_scheduler, recognizer)
 
 register_state = {
     "active": False,
@@ -68,6 +114,13 @@ def health_check():
         "status": "online",
         "registered_faces_count": len(recognizer.known_faces),
         "bypass_anti_spoofing": config.BYPASS_ANTI_SPOOFING
+    }
+
+@app.get("/api/registered_faces")
+def get_registered_faces():
+    return {
+        "success": True,
+        "rolls": list(recognizer.known_faces.keys())
     }
 
 @app.post("/api/register/start")
@@ -172,8 +225,12 @@ def process_register_frame(req: FrameRequest):
             dx_right = abs(chin_right_x - nose_x)
             pose_ratio = dx_left / (dx_right + 1e-6)
 
-    if pose_ratio < 0.65:
+    if pose_ratio < 0.30:
+        current_pose = "TURN_RIGHT_EXTREME"
+    elif pose_ratio < 0.65:
         current_pose = "TURN_RIGHT"
+    elif pose_ratio > 3.0:
+        current_pose = "TURN_LEFT_EXTREME"
     elif pose_ratio > 1.45:
         current_pose = "TURN_LEFT"
     else:
@@ -192,7 +249,7 @@ def process_register_frame(req: FrameRequest):
         target_pose = "LOOK_STRAIGHT"
         direction = "SMILE / TILT HEAD"
 
-    pose_matched = (current_pose == target_pose) or (samples_count == 9)
+    pose_matched = (current_pose == target_pose) or (samples_count >= 9)
 
     is_real, spoof_score = anti_spoofer.analyze_face(frame, bbox)
 
@@ -200,7 +257,18 @@ def process_register_frame(req: FrameRequest):
         return {"success": True, "status": "spoof", "message": f"SPOOF DETECTED! Registration suspended. ({spoof_score:.2f})", "faces": [loc]}
 
     if not pose_matched:
-        return {"success": True, "status": "wrong_pose", "message": f"PLEASE {direction} ({samples_count}/10)", "faces": [loc]}
+        if "EXTREME" in current_pose and target_pose in current_pose:
+            dyn_msg = f"You turned too much. Turn back slightly. ({samples_count}/10)"
+        elif "RIGHT" in current_pose and target_pose == "TURN_LEFT":
+            dyn_msg = f"No, you are turning right. PLEASE {direction} ({samples_count}/10)"
+        elif "LEFT" in current_pose and target_pose == "TURN_RIGHT":
+            dyn_msg = f"No, you are turning left. PLEASE {direction} ({samples_count}/10)"
+        elif current_pose != "LOOK_STRAIGHT" and target_pose == "LOOK_STRAIGHT":
+            dyn_msg = f"Please do not turn. LOOK STRAIGHT ({samples_count}/10)"
+        else:
+            dyn_msg = f"PLEASE {direction} ({samples_count}/10)"
+        
+        return {"success": True, "status": "wrong_pose", "message": dyn_msg, "faces": [loc]}
 
     current_time = time.time()
     if current_time - register_state.get("last_capture_time", 0.0) >= 1.5:
@@ -301,3 +369,71 @@ def process_scan_frame(req: FrameRequest):
                 })
 
     return {"success": True, "faces": results, "is_scanning": attendance_scheduler.is_scanning}
+
+def generate_mjpeg_stream():
+    while True:
+        frame = cctv_processor.get_latest_frame()
+        if frame is not None:
+            # Encode frame to JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            if ret:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        # If no frame or failed to encode, wait a bit
+        time.sleep(0.05)
+
+@app.get("/api/cctv/stream")
+def cctv_stream():
+    return StreamingResponse(generate_mjpeg_stream(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+def generate_preview_stream(url: str):
+    # For generic IPs without RTSP, you might need http://<ip>/video, but we'll try directly first
+    cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+    start_time = time.time()
+    try:
+        while True:
+            # Auto-disconnect after 12 seconds to save resources
+            if time.time() - start_time > 12:
+                break
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.1)
+                continue
+                
+            frame = cv2.resize(frame, (640, 480))
+            ret2, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if ret2:
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            time.sleep(0.05)
+    finally:
+        cap.release()
+
+@app.get("/api/cctv/preview")
+def cctv_preview(url: str):
+    return StreamingResponse(generate_preview_stream(url), media_type="multipart/x-mixed-replace; boundary=frame")
+
+@app.get("/api/cctv/snapshot")
+def cctv_snapshot(url: str):
+    if url.startswith("rtsp://"):
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|allowed_media_types;video"
+    cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+    try:
+        # Give it a tiny bit of time to open stream and read a frame
+        ret, frame = cap.read()
+        if not ret:
+            # Try once more
+            time.sleep(1.0)
+            ret, frame = cap.read()
+            
+        if ret:
+            frame = cv2.resize(frame, (640, 480))
+            ret2, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+            if ret2:
+                return Response(content=buffer.tobytes(), media_type="image/jpeg")
+    finally:
+        cap.release()
+        
+    return JSONResponse(status_code=400, content={"success": False, "message": "Failed to grab snapshot"})

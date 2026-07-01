@@ -95,15 +95,15 @@
             <div class="form-group"><label class="form-label">Subject</label><select class="form-control" id="q-sub" style="width:190px" onchange="loadQuickGrid()"></select></div>
             <div class="form-group"><label class="form-label">Period</label>
               <select class="form-control" id="q-period" style="width:110px" onchange="loadQuickGrid()">
-                <option value="1">Period 1</option><option value="2">Period 2</option>
-                <option value="3">Period 3</option><option value="4">Period 4</option>
-                <option value="5">Period 5</option><option value="6">Period 6</option>
+                <option value="Period 1">Period 1</option><option value="Period 2">Period 2</option>
+                <option value="Period 3">Period 3</option><option value="Period 4">Period 4</option>
+                <option value="Period 5">Period 5</option><option value="Period 6">Period 6</option>
               </select>
             </div>
           </div>
           <div class="att-grid" id="quick-grid"></div>
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
-            <button class="btn btn-success btn-sm" onclick="qMarkAll('present')">✓ All Present</button>
+          <div id="q-bulk-btns" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-success btn-sm" onclick="qMarkAll('present')">✅ All Present</button>
             <button class="btn btn-danger btn-sm"  onclick="qMarkAll('absent')">✗ All Absent</button>
             <button class="btn btn-ghost btn-sm" id="btn-quick-clone" onclick="cloneAttendance('quick')" style="border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.02); display:none">
               <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-right:4px"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
@@ -116,6 +116,7 @@
             <button class="btn btn-primary btn-sm" onclick="saveQuick()">Submit & Lock</button>
             <span id="q-counter" style="font-size:12px;color:var(--text-muted);margin-left:4px"></span>
           </div>
+          <div id="q-lock-msg"></div>
         </div>
         <div class="card">
           <div class="card-title">My Sections — Average Attendance</div>
@@ -139,9 +140,9 @@
           <div class="form-group"><label class="form-label">Subject</label><select class="form-control" id="att-sub" style="width:180px" onchange="loadAttGrid()"></select></div>
           <div class="form-group"><label class="form-label">Period</label>
             <select class="form-control" id="att-period" style="width:110px" onchange="loadAttGrid()">
-              <option value="1">Period 1</option><option value="2">Period 2</option>
-              <option value="3">Period 3</option><option value="4">Period 4</option>
-              <option value="5">Period 5</option><option value="6">Period 6</option>
+              <option value="Period 1">Period 1</option><option value="Period 2">Period 2</option>
+              <option value="Period 3">Period 3</option><option value="Period 4">Period 4</option>
+              <option value="Period 5">Period 5</option><option value="Period 6">Period 6</option>
             </select>
           </div>
         </div>
@@ -255,8 +256,7 @@
       </p>
       <!-- Video stream container -->
       <div style="margin:0 auto 15px auto; width:100%; aspect-ratio:4/3; border-radius:12px; overflow:hidden; border:2px solid rgba(255,255,255,0.1); background:#000; display:flex; align-items:center; justify-content:center; position:relative;">
-        <video id="scan-stream-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; display:none;"></video>
-        <canvas id="scan-stream-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; pointer-events:none;"></canvas>
+        <img id="scan-stream-img" style="width:100%; height:100%; object-fit:cover; display:none;" />
         <div id="scan-stream-loader" class="spinner spinner-lg"></div>
       </div>
       <div id="scan-status-alert" class="alert alert-info" style="font-size:12px; margin-bottom:15px;">
@@ -337,8 +337,9 @@ function parseSec(label){
   return m ? {dept:m[1], year:m[2], section:m[3], semester:m[4]||null, label} : null;
 }
 
-// ═══════════════ DASHBOARD ═══
+// ═══════════════ DASHBOARD ═══════════════
 let qState={};
+let qLocked = false;
 function loadDash() {
   populateMySelects();
   const today=new Date().toISOString().split('T')[0];
@@ -380,7 +381,7 @@ function loadDash() {
 function loadQuickGrid() {
   const secLabel = document.getElementById('q-sec')?.value;
   const sem = document.getElementById('q-sem')?.value;
-  const period = document.getElementById('q-period')?.value || "1";
+  const period = document.getElementById('q-period')?.value || "Period 1";
   
   refreshSubjectFilters();
   const subName = document.getElementById('q-sub')?.value;
@@ -390,23 +391,36 @@ function loadQuickGrid() {
   const subObj = DATA.getSubjects().find(s => s.name === subName || s.code === subName);
   const today = new Date().toISOString().split('T')[0];
   const locked = subObj ? DATA.isLocked(today, subObj.id, secLabel, period) : false;
+  qLocked = locked;
 
   qState = {};
   if (locked && subObj) {
-    const records = DATA.getSessionAtt(today, subObj.id, period);
-    quickStudents.forEach(s => qState[s.id] = records[s.id] || null);
-    renderQuickGrid(quickStudents, true);
-    const lockBy = DATA.getLockInfo(today, subObj.id, secLabel, period)?.lockedBy || 'Unknown';
-    const lockMsg = document.getElementById('q-lock-msg');
-    if (lockMsg) lockMsg.innerHTML = `<div class="alert alert-success">Locked by ${lockBy}</div>`;
-    const bBtns = document.getElementById('q-bulk-btns');
+      const records = DATA.getSessionAtt(today, subObj.id, period);
+      quickStudents.forEach(s => qState[s.id] = records[s.id] || null);
+      renderQuickGrid(quickStudents, true);
+      const lockInfo = DATA.getLockInfo(today, subObj.id, secLabel, period);
+      let lockByName = lockInfo?.lockedBy || 'Unknown';
+      if (lockByName === 'FRS_WATCHMAN') {
+          lockByName = 'AI Camera';
+      } else {
+          const teacher = DATA._cache.teachers?.find(t => t.id === lockByName || t.name === lockByName);
+          if (teacher) lockByName = teacher.name;
+      }
+      let lockSubject = lockInfo?.subjectId || '';
+      const subj = DATA._cache.subjects?.find(s => s.id === lockSubject || s.code === lockSubject);
+      if (subj) lockSubject = subj.name;
+      else if (lockSubject === 'SUB178120168763591') lockSubject = 'AI Auto-scan';
+      
+      const lockMsg = document.getElementById('q-lock-msg');
+      if (lockMsg) lockMsg.innerHTML = `<div class="alert alert-success">Locked by ${lockByName} (${lockSubject})</div>`;
+      const bBtns = document.getElementById('q-bulk-btns');
     if (bBtns) bBtns.style.display = 'none';
   } else {
     quickStudents.forEach(s => qState[s.id] = null);
     renderQuickGrid(quickStudents, false);
-    const period = document.getElementById('q-period')?.value || "1";
+    const period = document.getElementById('q-period')?.value || "Period 1";
     const btnClone = document.getElementById('btn-quick-clone');
-    if (btnClone) btnClone.style.display = (period > 1) ? 'flex' : 'none';
+    if (btnClone) btnClone.style.display = (period !== 'Period 1') ? 'flex' : 'none';
 
     const lockMsg = document.getElementById('q-lock-msg');
     if (lockMsg) lockMsg.innerHTML = '';
@@ -439,6 +453,7 @@ function renderQuickGrid(sList, locked) {
   updateQCounter();
 }
 function setQ(id,val){
+  if(qLocked) return;
   qState[id]=qState[id]===val?null:val;
   const c=document.getElementById('qc-'+id); if(!c) return;
   c.className='att-card '+(qState[id]||'');
@@ -447,6 +462,7 @@ function setQ(id,val){
   updateQCounter();
 }
 function qMarkAll(v){
+  if(qLocked) return;
   const qMarkStudents = filterStudentsQuick();
   qMarkStudents.forEach(s => qState[s.id] = v);
   renderQuickGrid(qMarkStudents, false);
@@ -459,9 +475,10 @@ function filterStudentsQuick() {
 }
 function updateQCounter(){ const v=Object.values(qState); document.getElementById('q-counter').textContent=`Present: ${v.filter(x=>x==='present').length}  Absent: ${v.filter(x=>x==='absent').length}`; }
 async function saveQuick(){
+  if(qLocked){UI.toast('This attendance session is locked.','error');return;}
   const subName=document.getElementById('q-sub')?.value;
   const secLabel=document.getElementById('q-sec')?.value||'';
-  const period=document.getElementById('q-period')?.value || "1";
+  const period=document.getElementById('q-period')?.value || "Period 1";
   const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
   if (!subObj){UI.toast('Subject not found in system','warning');return;}
   const today=new Date().toISOString().split('T')[0];
@@ -482,7 +499,7 @@ function initMark(){
 }
 function loadAttGrid(){
   const secLabel=document.getElementById('att-sec')?.value;
-  const period=document.getElementById('att-period')?.value || "1";
+  const period=document.getElementById('att-period')?.value || "Period 1";
   refreshSubjectFilters();
   const subName =document.getElementById('att-sub')?.value;
   const date    =document.getElementById('att-date')?.value;
@@ -502,17 +519,25 @@ function loadAttGrid(){
     const savBtn=document.getElementById('att-save-btn');
     const bulkBtns=document.getElementById('att-bulk-btns');
     if (locked) {
-      const info=subObj?DATA.getLockInfo(date,subObj.id,secLabel,period):null;
-      const by=`Attendance already marked by ${info?.lockedBy || 'Faculty'} for this period.`;
-      lockNotice.innerHTML=`<div style="display:flex; align-items:center; gap:10px">
-        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg>
-        <span>${by}</span>
-      </div>`;
-      lockNotice.classList.remove('alert-success');
-      lockNotice.classList.add('alert-warning');
-      lockNotice.style.display='flex';
-      if(savBtn) savBtn.style.display='none';
-      if(bulkBtns) bulkBtns.style.display='none';
+        const lockInfo = subObj ? DATA.getLockInfo(date, subObj.id, secLabel, period) : null;
+        let lockByName = lockInfo?.lockedBy || 'Unknown';
+        if (lockByName === 'FRS_WATCHMAN') {
+            lockByName = 'AI Camera';
+        } else {
+            const teacher = DATA._cache.teachers?.find(t => t.id === lockByName || t.name === lockByName);
+            if (teacher) lockByName = teacher.name;
+        }
+        let lockSubject = lockInfo?.subjectId || '';
+        const subj = DATA._cache.subjects?.find(s => s.id === lockSubject || s.code === lockSubject);
+        if (subj) lockSubject = subj.name;
+        else if (lockSubject === 'SUB178120168763591') lockSubject = 'AI Auto-scan';
+
+        if (lockNotice) {
+            lockNotice.style.display = 'block';
+            lockNotice.innerHTML = `Locked by ${lockByName} (${lockSubject})`;
+        }
+        if(savBtn) savBtn.style.display='none';
+        if(bulkBtns) bulkBtns.style.display='none';
     } else {
       lockNotice.style.display='none';
       if(savBtn) savBtn.style.display='';
@@ -585,7 +610,7 @@ async function saveAttendance(){
   const subName=document.getElementById('att-sub')?.value;
   const secLabel=document.getElementById('att-sec')?.value||'';
   const date=document.getElementById('att-date')?.value;
-  const period=document.getElementById('att-period')?.value || "1";
+  const period=document.getElementById('att-period')?.value || "Period 1";
   const subObj=DATA.getSubjects().find(s=>s.name===subName||s.code===subName);
   if(!subObj){UI.toast('Subject not found','warning');return;}
   const unmarked=Object.values(attState).filter(v=>!v).length;
@@ -601,7 +626,7 @@ async function cloneAttendance(type) {
   const date = isQuick ? new Date().toISOString().split('T')[0] : document.getElementById('att-date').value;
   const section = document.getElementById(isQuick ? 'q-sec' : 'att-sec').value;
   const period = document.getElementById(isQuick ? 'q-period' : 'att-period').value;
-  if (period == "1") return;
+  if (period === "Period 1") return;
   const records = await DATA.getPreviousAtt(date, section, period);
   if (!records) { UI.toast('No previous records found.', 'warning'); return; }
   if (isQuick) {
@@ -834,21 +859,19 @@ function triggerFaceScan(type) {
   // 1. Show class scan modal
   document.getElementById('classScanModal').style.display = 'flex';
   document.getElementById('scan-modal-details').textContent = `Scanning Section: ${secLabel} | Subject: ${subName} (Period ${period})`;
-  const video = document.getElementById('scan-stream-video');
-  const canvas = document.getElementById('scan-stream-canvas');
-  video.style.display = 'none';
-  canvas.style.display = 'none';
+  const img = document.getElementById('scan-stream-img');
+  img.style.display = 'none';
   document.getElementById('scan-stream-loader').style.display = 'block';
   document.getElementById('scan-status-alert').className = 'alert alert-info';
-  document.getElementById('scan-status-alert').textContent = 'Requesting camera access...';
+  document.getElementById('scan-status-alert').textContent = 'Connecting to CCTV...';
   
   const progressBar = document.getElementById('scan-progress-bar');
   progressBar.style.transition = 'none';
   progressBar.style.width = '100%';
   setTimeout(() => { progressBar.style.transition = 'width 1s linear'; }, 50);
 
-  const FRS_BASE = 'http://127.0.0.1:8000/api';
-  const duration = 20; // 20 seconds is plenty for a test scan!
+  const FRS_BASE = 'http://127.0.0.1:10000/api';
+  const duration = 120; // 120 seconds for PTZ auto-tour search
 
   // 2. Trigger scan API call
   fetch(`${FRS_BASE}/scan/trigger`, {
@@ -868,71 +891,12 @@ function triggerFaceScan(type) {
       throw new Error(data.message || 'Failed to trigger scan.');
     }
     
-    // Start WebRTC Camera
-    return navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-  })
-  .then(stream => {
-    localStream = stream;
-    video.srcObject = stream;
-    video.style.display = 'block';
-    canvas.style.display = 'block';
+    // Show CCTV Stream
+    img.src = `${FRS_BASE}/cctv/stream?t=` + new Date().getTime();
+    img.style.display = 'block';
     document.getElementById('scan-stream-loader').style.display = 'none';
-    document.getElementById('scan-status-alert').textContent = 'Classroom scanning in progress... Look at the camera.';
+    document.getElementById('scan-status-alert').textContent = 'Classroom scanning in progress via CCTV...';
     
-    // Setup temporary canvas for frame extraction
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 640;
-    tempCanvas.height = 480;
-    const tempCtx = tempCanvas.getContext('2d');
-    
-    const displayCtx = canvas.getContext('2d');
-
-    // Start frame sending loop (approx 2-3 FPS)
-    frameInterval = setInterval(() => {
-      if(video.readyState === video.HAVE_ENOUGH_DATA) {
-        // Match canvas dimensions to video
-        if(canvas.width !== video.clientWidth) {
-            canvas.width = video.clientWidth;
-            canvas.height = video.clientHeight;
-        }
-
-        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-        const base64Img = tempCanvas.toDataURL('image/jpeg', 0.8);
-
-        fetch(`${FRS_BASE}/scan/frame`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64Img })
-        })
-        .then(r => r.json())
-        .then(result => {
-            if(result.success && result.faces) {
-                // Draw overlays
-                displayCtx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Scale coordinates
-                const scaleX = canvas.width / 640;
-                const scaleY = canvas.height / 480;
-
-                result.faces.forEach(face => {
-                    const top = face.loc[0] * scaleY;
-                    const right = face.loc[1] * scaleX;
-                    const bottom = face.loc[2] * scaleY;
-                    const left = face.loc[3] * scaleX;
-                    
-                    displayCtx.strokeStyle = face.color;
-                    displayCtx.lineWidth = 2;
-                    displayCtx.strokeRect(left, top, right - left, bottom - top);
-                    
-                    displayCtx.fillStyle = face.color;
-                    displayCtx.font = "14px Arial";
-                    displayCtx.fillText(face.label, left, top - 5);
-                });
-            }
-        }).catch(e => console.error("Frame processing error:", e));
-      }
-    }, 400); // 400ms = 2.5 FPS
-
     // Start progress countdown
     classScanSecondsRemaining = duration;
     if (classScanTimer) clearInterval(classScanTimer);
@@ -940,7 +904,7 @@ function triggerFaceScan(type) {
       classScanSecondsRemaining--;
       const pct = (classScanSecondsRemaining / duration) * 100;
       progressBar.style.width = `${pct}%`;
-      document.getElementById('scan-status-alert').textContent = `Classroom scanning... ${classScanSecondsRemaining}s remaining.`;
+      document.getElementById('scan-status-alert').textContent = `CCTV scanning... ${classScanSecondsRemaining}s remaining.`;
       
       if (classScanSecondsRemaining <= 0) {
         clearInterval(classScanTimer);
@@ -966,19 +930,10 @@ function triggerFaceScan(type) {
 
 function closeClassScanModal() {
   if (classScanTimer) clearInterval(classScanTimer);
-  if (frameInterval) clearInterval(frameInterval);
-  if (localStream) {
-      localStream.getTracks().forEach(t => t.stop());
-      localStream = null;
-  }
   classScanTimer = null;
-  frameInterval = null;
-  const video = document.getElementById('scan-stream-video');
-  video.pause();
-  video.srcObject = null;
-  const canvas = document.getElementById('scan-stream-canvas');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const img = document.getElementById('scan-stream-img');
+  img.src = "";
+  img.style.display = 'none';
   
   document.getElementById('classScanModal').style.display = 'none';
 }

@@ -210,7 +210,7 @@ const DATA = {
           });
           this._cache.attendance = attData;
       }
-      if (results[7]?.success) this._cache.locks = results[7].data;
+      
       
       window.dispatchEvent(new CustomEvent('vemu_data_changed'));
     } catch (err) {
