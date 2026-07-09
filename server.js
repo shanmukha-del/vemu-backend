@@ -13,7 +13,9 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
-app.use(express.json());
+// Increased limit to 10MB to handle HD Image Base64 uploads from CCTV
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static frontend files (HTML, CSS, JS) to prevent file:/// CORS issues
 app.use(express.static(__dirname));
@@ -86,6 +88,15 @@ const Camera = mongoose.model('Camera', cameraSchema);
 const timetableSchema = new mongoose.Schema({ section: String, day: String, period: String, subjectId: String, subjectName: String });
 timetableSchema.index({ section: 1, day: 1, period: 1 }, { unique: true });
 const Timetable = mongoose.model('Timetable', timetableSchema);
+
+// Alerts Schema (For Sleeping Students)
+const alertSchema = new mongoose.Schema({
+    timestamp: Number,
+    image: String,
+    type: { type: String, default: 'sleeping' },
+    createdAt: { type: Date, expires: '24h', default: Date.now } // Auto-deletes after 24 hours!
+});
+const Alert = mongoose.model('Alert', alertSchema);
 
 // 3. Cleanup
 async function cleanupDatabase() {
@@ -435,6 +446,27 @@ app.delete('/api/cameras/:ip', async (req, res) => {
     try {
         await Camera.findOneAndDelete({ ipAddress: req.params.ip });
         res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// --- Sleeping Alerts API ---
+app.post('/api/alerts/sleeping', async (req, res) => {
+    try {
+        const { timestamp, image } = req.body;
+        if (!image) return res.status(400).json({ success: false, message: 'Image data missing' });
+        
+        const newAlert = new Alert({ timestamp, image, type: 'sleeping' });
+        await newAlert.save();
+        
+        res.json({ success: true, message: 'Alert saved to cloud successfully.' });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+app.get('/api/alerts/sleeping', async (req, res) => {
+    try {
+        // Fetch all sleeping alerts, sorted by newest first
+        const data = await Alert.find({ type: 'sleeping' }).sort({ timestamp: -1 }).lean();
+        res.json({ success: true, data });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
