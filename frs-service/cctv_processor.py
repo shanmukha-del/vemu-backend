@@ -6,6 +6,7 @@ import os
 import numpy as np
 from datetime import datetime
 import face_recognition
+from ultralytics import YOLO
 
 import config
 from ptz_controller import ptz
@@ -34,6 +35,11 @@ class CCTVProcessor(threading.Thread):
         self.scheduler = None
         self.recognizer = None
         
+        # YOLO for Person (Sleeping) Detection
+        self.yolo_model = YOLO("yolov8n.pt")
+        self.last_sleeping_alert_time = 0
+        self.current_section_rolls = None
+        
         # PTZ Auto Tour State
         self.ptz_state = "idle"
         self.ptz_last_action_time = 0
@@ -51,13 +57,42 @@ class CCTVProcessor(threading.Thread):
         source = config.CAMERA_SOURCE
         try:
             url = f"{config.BACKEND_API_URL}/cameras"
-            res = requests.get(url, timeout=5)
+            res = requests.get(url, timeout=15)
             if res.status_code == 200:
                 data = res.json().get("data", [])
                 if data and len(data) > 0:
-                    source = data[0].get("ipAddress", source)
-                    config.CAMERA_SOURCE = source
-                    logger.info(f"Dynamically loaded camera from database: {source}")
+                    dept_cameras = [c for c in data if str(c.get('section', '')).startswith(config.DEPARTMENT_NAME)]
+                    
+                    if dept_cameras:
+                        target_cam = dept_cameras[0]
+                        source = target_cam.get("ipAddress", source)
+                        config.CAMERA_SOURCE = source
+                        
+                        room_number = target_cam.get("roomNumber", "Unknown")
+                        section = target_cam.get("section", "Unknown")
+                        department = config.DEPARTMENT_NAME
+                        total_dept_cams = len(dept_cameras)
+                        
+                        logger.info(f"Dynamically loaded camera from DB: {source}")
+                        logger.info(f"Camera Assignment -> Room: {room_number}, Section: {section}, Department: {department}")
+                        logger.info(f"Total cameras mapped to {department} department: {total_dept_cams}")
+                        
+                        if self.scheduler:
+                            students = self.scheduler.fetch_students_in_section(section)
+                            rolls = [s.get("roll") for s in students if s.get("roll")]
+                            self.current_section_rolls = rolls
+                            logger.info(f"Loaded {len(rolls)} registered students for Section {section}:")
+                            for idx, roll in enumerate(rolls, start=1):
+                                # Check if biometric data exists in embeddings.json
+                                bio_status = "✅ Biometric Registered"
+                                if self.recognizer and roll not in self.recognizer.known_faces:
+                                    bio_status = "❌ Biometric Pending"
+                                logger.info(f"  {idx}. {roll} ({bio_status})")
+                    else:
+                        logger.warning(f"No cameras found in MERN DB for department {config.DEPARTMENT_NAME}. Please add them via Admin panel.")
+                        # Keep fallback source if any, or it will fail gracefully and retry later
+                        if self.scheduler:
+                            logger.info(f"No students loaded because no camera is assigned to {config.DEPARTMENT_NAME} yet.")
         except Exception as e:
             logger.warning(f"Could not fetch dynamic camera URL from DB, using fallback. Error: {e}")
 
@@ -101,30 +136,40 @@ class CCTVProcessor(threading.Thread):
                 time.sleep(0.5)
 
     def process_faces(self, frame):
-        """Run face recognition on the frame."""
+        """Run face recognition on the frame and detect sleeping students."""
         if not self.scheduler or not self.scheduler.is_scanning:
             return []
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # CLAHE Enhancement for Dark/Sunlight issues
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l_channel, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        cl = clahe.apply(l_channel)
+        limg = cv2.merge((cl, a, b))
+        enhanced_bgr = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+        rgb_frame = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB)
         
-        # Scale down for faster and more reliable HOG processing
-        small_frame = cv2.resize(rgb_frame, (0, 0), fx=0.5, fy=0.5)
-        
+        # 1. YOLOv8 Person Detection
+        yolo_results = self.yolo_model(enhanced_bgr, classes=[0], verbose=False) # class 0 is 'person'
+        person_boxes = []
+        if len(yolo_results) > 0:
+            for r in yolo_results[0].boxes.data.tolist():
+                x1, y1, x2, y2, score, class_id = r
+                if score > 0.4:
+                    person_boxes.append((int(x1), int(y1), int(x2), int(y2)))
+
+        # 2. Face Recognition
         with config.FACE_LOCK:
-            # upsample=2 for much higher accuracy on smaller faces
-            face_locations = face_recognition.face_locations(small_frame, model="hog", number_of_times_to_upsample=2)
-            if not face_locations:
-                return []
-            face_encodings = face_recognition.face_encodings(small_frame, face_locations)
+            face_locations = face_recognition.face_locations(rgb_frame, model="hog", number_of_times_to_upsample=1)
+            face_encodings = face_recognition.face_encodings(rgb_frame, face_locations) if face_locations else []
 
         results = []
         for (top, right, bottom, left), encoding in zip(face_locations, face_encodings):
-            top, right, bottom, left = top * 2, right * 2, bottom * 2, left * 2
             
             roll_no = None
             dist = 1.0
             if self.recognizer:
-                roll_no, dist = self.recognizer.match_face(encoding)
+                roll_no, dist = self.recognizer.match_face(encoding, allowed_rolls=self.current_section_rolls)
             
             if roll_no is not None:
                 results.append((roll_no, top, right, bottom, left, "Recognized"))
@@ -133,12 +178,65 @@ class CCTVProcessor(threading.Thread):
             else:
                 results.append(("Unknown", top, right, bottom, left, "Unknown"))
                 
+        # 3. Sleeping / Head Down Detection
+        if person_boxes:
+            for px1, py1, px2, py2 in person_boxes:
+                has_face = False
+                for ftop, fright, fbottom, fleft in face_locations:
+                    fx_center = (fleft + fright) // 2
+                    fy_center = (ftop + fbottom) // 2
+                    if px1 <= fx_center <= px2 and py1 <= fy_center <= py2:
+                        has_face = True
+                        break
+                        
+                if not has_face:
+                    current_time = time.time()
+                    if current_time - self.last_sleeping_alert_time > 10: # Only alert once every 10 seconds to avoid spam
+                        self.last_sleeping_alert_time = current_time
+                        
+                        alert_frame = frame.copy()
+                        cv2.rectangle(alert_frame, (px1, py1), (px2, py2), (0, 0, 255), 4)
+                        cv2.putText(alert_frame, "Sleeping / Head Down", (px1, py1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+                        
+                        threading.Thread(target=self._upload_sleeping_alert, args=(alert_frame,)).start()
+                    break
+
         return results
+
+    def _upload_sleeping_alert(self, frame_img):
+        try:
+            import os
+            import time
+            import requests
+            import base64
+            
+            os.makedirs(os.path.join(config.DATA_DIR, "alerts"), exist_ok=True)
+            timestamp = int(time.time())
+            temp_path = os.path.join(config.DATA_DIR, "alerts", f"sleeping_{timestamp}.jpg")
+            cv2.imwrite(temp_path, frame_img)
+            
+            url = f"{config.BACKEND_API_URL}/alerts/sleeping"
+            with open(temp_path, "rb") as f:
+                img_b64 = base64.b64encode(f.read()).decode("utf-8")
+                
+            data = {
+                "timestamp": timestamp,
+                "image": "data:image/jpeg;base64," + img_b64
+            }
+            res = requests.post(url, json=data, timeout=5)
+            if res.status_code == 200:
+                logger.info("Sleeping alert successfully uploaded to MERN cloud.")
+            else:
+                logger.warning(f"Failed to upload sleeping alert. MERN returned: {res.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Error uploading sleeping alert: {e}")
 
     def run(self):
         self.running = True
         self.capture_thread.start()
         
+        last_processed_id = None
         while self.running:
             if not self.cap or not self.cap.isOpened():
                 if not self.connect():
@@ -148,12 +246,16 @@ class CCTVProcessor(threading.Thread):
                 logger.info("CCTV Stream Connected. Initiating processing loop.")
             
             with self.frame_lock:
-                frame = self.latest_raw_frame.copy() if self.latest_raw_frame is not None else None
+                raw_frame = self.latest_raw_frame
+                current_id = id(raw_frame)
                 
-            if frame is None:
-                time.sleep(0.05)
+            if raw_frame is None or current_id == last_processed_id:
+                time.sleep(0.03)
                 continue
                 
+            last_processed_id = current_id
+            frame = raw_frame.copy()
+            
             # 1. Motion Detection
             fg_mask = self.back_sub.apply(frame)
             _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
@@ -181,8 +283,8 @@ class CCTVProcessor(threading.Thread):
                 if self.ptz_state == "idle":
                     self.ptz_state = "moving"
                     self.ptz_last_action_time = current_time
-                    ptz.move(pan_speed=self.ptz_direction, tilt_speed=0.0)
-                    logger.info("Continuous Auto-Tour started.")
+                    ptz.move(pan_speed=self.ptz_direction, tilt_speed=0.05, zoom_speed=0.05)
+                    logger.info("Continuous Auto-Tour started (with Pan, Tilt & Zoom for full coverage).")
                 
                 elif self.ptz_state == "moving":
                     # Move for 1.5 seconds
@@ -201,7 +303,10 @@ class CCTVProcessor(threading.Thread):
                     if current_time - self.ptz_last_action_time > 2.0:
                         self.ptz_state = "moving"
                         self.ptz_last_action_time = current_time
-                        ptz.move(pan_speed=self.ptz_direction, tilt_speed=0.0)
+                        # Alternate tilt/zoom slightly based on direction for dynamic coverage
+                        tilt = 0.05 if self.ptz_direction > 0 else -0.05
+                        zoom = 0.05 if self.ptz_direction > 0 else -0.05
+                        ptz.move(pan_speed=self.ptz_direction, tilt_speed=tilt, zoom_speed=zoom)
             else:
                 if self.ptz_state != "idle":
                     ptz.stop()
