@@ -40,11 +40,14 @@ class CCTVProcessor(threading.Thread):
         self.last_sleeping_alert_time = 0
         self.current_section_rolls = None
         
-        # PTZ Auto Tour State
+        # PTZ Advanced Grid Scan State
         self.ptz_state = "idle"
         self.ptz_last_action_time = 0
-        self.ptz_pans_done = 0
-        self.ptz_direction = 0.5  # Positive = right
+        self.ptz_grid_index = 0
+        self.ptz_zoom_level = 0
+        self.ptz_zoom_retries = 0
+        self.grid_presets = ["1", "2", "3", "4", "5", "6"]
+        self.needs_zoom_flag = False
         
         self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
 
@@ -158,13 +161,26 @@ class CCTVProcessor(threading.Thread):
                 if score > 0.4:
                     person_boxes.append((int(x1), int(y1), int(x2), int(y2)))
 
+        # Blur Detection: Calculate variance of Laplacian on the gray frame
+        gray_frame = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2GRAY)
+
         # 2. Face Recognition
+        # If camera is pausing during grid scan, we upsample by 2 for better backbench detection
+        upsample = 2 if self.ptz_state == "pausing" else 1
         with config.FACE_LOCK:
-            face_locations = face_recognition.face_locations(rgb_frame, model="hog", number_of_times_to_upsample=1)
+            face_locations = face_recognition.face_locations(rgb_frame, model="hog", number_of_times_to_upsample=upsample)
             face_encodings = face_recognition.face_encodings(rgb_frame, face_locations) if face_locations else []
 
         results = []
+        needs_zoom_local = False
         for (top, right, bottom, left), encoding in zip(face_locations, face_encodings):
+            
+            # Check blur for this specific face
+            face_roi = gray_frame[top:bottom, left:right]
+            if face_roi.size > 0:
+                blur_val = cv2.Laplacian(face_roi, cv2.CV_64F).var()
+                if blur_val < 60.0:  # Threshold for blurriness
+                    needs_zoom_local = True
             
             roll_no = None
             dist = 1.0
@@ -177,6 +193,9 @@ class CCTVProcessor(threading.Thread):
                     self.scheduler.record_detected_face(roll_no)
             else:
                 results.append(("Unknown", top, right, bottom, left, "Unknown"))
+                
+        if needs_zoom_local:
+            self.needs_zoom_flag = True
                 
         # 3. Sleeping / Head Down Detection
         if person_boxes:
@@ -204,12 +223,12 @@ class CCTVProcessor(threading.Thread):
         return results
 
     def _upload_sleeping_alert(self, frame_img):
+        import os
+        import time
+        import requests
+        import base64
+        
         try:
-            import os
-            import time
-            import requests
-            import base64
-            
             os.makedirs(os.path.join(config.DATA_DIR, "alerts"), exist_ok=True)
             timestamp = int(time.time())
             temp_path = os.path.join(config.DATA_DIR, "alerts", f"sleeping_{timestamp}.jpg")
@@ -223,14 +242,25 @@ class CCTVProcessor(threading.Thread):
                 "timestamp": timestamp,
                 "image": "data:image/jpeg;base64," + img_b64
             }
-            res = requests.post(url, json=data, timeout=5)
-            if res.status_code == 200:
-                logger.info("Sleeping alert successfully uploaded to MERN cloud.")
-            else:
-                logger.warning(f"Failed to upload sleeping alert. MERN returned: {res.status_code}")
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    res = requests.post(url, json=data, timeout=30)
+                    if res.status_code == 200:
+                        logger.info("Sleeping alert successfully uploaded to MERN cloud.")
+                        break # Success
+                    else:
+                        logger.warning(f"Failed to upload sleeping alert. MERN returned: {res.status_code}")
+                except requests.exceptions.RequestException as req_err:
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed to upload sleeping alert: {req_err}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 * (attempt + 1)) # Exponential backoff
+                    else:
+                        logger.error("All retries failed for uploading sleeping alert.")
                 
         except Exception as e:
-            logger.error(f"Error uploading sleeping alert: {e}")
+            logger.error(f"Error preparing/uploading sleeping alert: {e}")
 
     def run(self):
         self.running = True
@@ -278,47 +308,68 @@ class CCTVProcessor(threading.Thread):
             elif self.motion_detected and (current_time - self.last_motion_time > self.motion_timeout):
                 self.motion_detected = False
             
-            # 2. PTZ Auto Tour Logic
+            # 2. PTZ Advanced Grid Scan Logic
             if self.scheduler and self.scheduler.is_scanning:
                 if self.ptz_state == "idle":
-                    self.ptz_state = "moving"
+                    self.ptz_state = "moving_to_preset"
                     self.ptz_last_action_time = current_time
-                    ptz.move(pan_speed=self.ptz_direction, tilt_speed=0.05, zoom_speed=0.05)
-                    logger.info("Continuous Auto-Tour started (with Pan, Tilt & Zoom for full coverage).")
+                    self.ptz_grid_index = 0
+                    self.ptz_zoom_retries = 0
+                    preset = self.grid_presets[self.ptz_grid_index]
+                    ptz.goto_preset(preset)
+                    logger.info(f"Advanced Grid Scan started. Moving to Sector {preset}.")
                 
-                elif self.ptz_state == "moving":
-                    # Move for 1.5 seconds
+                elif self.ptz_state == "moving_to_preset":
+                    # Wait 3 seconds for camera to reach preset
+                    if current_time - self.ptz_last_action_time > 3.0:
+                        ptz.stop()
+                        self.ptz_state = "pausing"
+                        self.ptz_last_action_time = current_time
+                        self.needs_zoom_flag = False
+                        
+                elif self.ptz_state == "pausing":
+                    # Pause for 3 seconds to scan the current area thoroughly
+                    if current_time - self.ptz_last_action_time > 3.0:
+                        if self.needs_zoom_flag and self.ptz_zoom_retries < 2:
+                            # Face was blurry, zoom in and try again
+                            self.ptz_state = "zooming_in"
+                            self.ptz_last_action_time = current_time
+                            self.ptz_zoom_retries += 1
+                            ptz.move(pan_speed=0.0, tilt_speed=0.0, zoom_speed=0.5)
+                            logger.info(f"Blurry faces detected in Sector {self.grid_presets[self.ptz_grid_index]}. Zooming in (Attempt {self.ptz_zoom_retries}).")
+                        else:
+                            # Move to next grid
+                            self.ptz_grid_index += 1
+                            if self.ptz_grid_index >= len(self.grid_presets):
+                                # Restart grid if scan is still active
+                                self.ptz_grid_index = 0
+                                logger.info("Completed one full room sweep. Restarting sweep.")
+                                
+                            self.ptz_state = "moving_to_preset"
+                            self.ptz_last_action_time = current_time
+                            self.ptz_zoom_retries = 0
+                            preset = self.grid_presets[self.ptz_grid_index]
+                            ptz.goto_preset(preset)
+                            
+                elif self.ptz_state == "zooming_in":
+                    # Zoom in for 1.5 seconds
                     if current_time - self.ptz_last_action_time > 1.5:
                         ptz.stop()
                         self.ptz_state = "pausing"
                         self.ptz_last_action_time = current_time
-                        self.ptz_pans_done += 1
-                        
-                        if self.ptz_pans_done >= 4:
-                            self.ptz_direction *= -1
-                            self.ptz_pans_done = 0
-                            
-                elif self.ptz_state == "pausing":
-                    # Pause for 2 seconds to scan the current area thoroughly without blur
-                    if current_time - self.ptz_last_action_time > 2.0:
-                        self.ptz_state = "moving"
-                        self.ptz_last_action_time = current_time
-                        # Alternate tilt/zoom slightly based on direction for dynamic coverage
-                        tilt = 0.05 if self.ptz_direction > 0 else -0.05
-                        zoom = 0.05 if self.ptz_direction > 0 else -0.05
-                        ptz.move(pan_speed=self.ptz_direction, tilt_speed=tilt, zoom_speed=zoom)
+                        self.needs_zoom_flag = False
             else:
                 if self.ptz_state != "idle":
                     ptz.stop()
                     self.ptz_state = "idle"
-                    self.ptz_pans_done = 0
-                    logger.info("Scan session ended. PTZ Auto-Tour stopped.")
+                    self.ptz_grid_index = 0
+                    logger.info("Scan session ended. PTZ Advanced Grid Scan stopped.")
 
             # 3. AI Face Recognition
             faces = self.latest_faces  # Keep previous faces by default
             if self.motion_detected and self.scheduler and self.scheduler.is_scanning:
                 # Only scan if pausing to prevent blur, but don't delete old boxes immediately
-                if self.ptz_state != "moving":
+                if self.ptz_state == "pausing":
                     faces = self.process_faces(frame)
                 else:
                     # Clear boxes when camera actually moves to avoid floating boxes
